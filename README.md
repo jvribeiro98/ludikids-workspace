@@ -99,6 +99,27 @@ ludikids_software/
 | `pnpm db:studio` | Abre Prisma Studio no banco. |
 | `docker compose -f infra/docker-compose.yml ps` | Status dos containers. |
 | `docker compose -f infra/docker-compose.yml down` | Parar containers. |
+| `./scripts/seed.sh` | Gera cliente Prisma e roda seed (carrega .env da raiz). |
+
+### Se o `git pull` rejeitar por alterações locais
+
+```bash
+git checkout -- run-local.sh
+git pull origin main
+```
+
+Depois rode `./run-local.sh` ou, só para generate + seed: `chmod +x scripts/seed.sh && ./scripts/seed.sh`.
+
+### Rodar migrations e seed manualmente (com .env)
+
+```bash
+set -a && source .env && set +a
+pnpm --filter api exec prisma generate
+pnpm --filter api exec prisma migrate deploy
+pnpm db:seed
+```
+
+Ou use `./scripts/seed.sh` (já carrega .env e roda generate + seed).
 
 ---
 
