@@ -17,12 +17,14 @@ RUN pnpm --filter api build
 
 FROM node:22-alpine AS runner
 WORKDIR /app
-ENV NODE_ENV=production
+# NODE_ENV=production só na execução (entrypoint), para não afetar disponibilidade do Prisma
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/apps/api/package.json ./
 COPY --from=builder /app/apps/api/prisma ./prisma
+COPY --from=builder /app/apps/api/entrypoint.sh ./entrypoint.sh
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/pnpm-workspace.yaml ./
+RUN chmod +x /app/entrypoint.sh
 EXPOSE 4000
-CMD ["node", "dist/main.js"]
+CMD ["/app/entrypoint.sh"]

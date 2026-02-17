@@ -1,4 +1,4 @@
-# LudiKids - Docker Compose (dev e produção)
+# LudiKids - Postgres e Redis para rodar na VM (API e Web sobem com pnpm dev)
 # Uso: docker compose -f infra/docker-compose.yml up -d
 
 services:
@@ -32,40 +32,6 @@ services:
       timeout: 3s
       retries: 5
 
-  api:
-    build:
-      context: ..
-      dockerfile: apps/api/Dockerfile
-    container_name: ludikids-api
-    environment:
-      DATABASE_URL: postgresql://ludikids:${POSTGRES_PASSWORD:-ludikids}@postgres:5432/ludikids
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-in-production}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@ludikids.com.br}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin@123}
-      BACKUP_DIR: /backups
-    ports:
-      - "4000:4000"
-    volumes:
-      - backup_volume:/backups
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis: { condition: service_healthy }
-
-  web:
-    build:
-      context: ..
-      dockerfile: apps/web/Dockerfile
-    container_name: ludikids-web
-    environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
-    ports:
-      - "3000:3000"
-    depends_on:
-      - api
-
 volumes:
   postgres_data:
   redis_data:
-  backup_volume:

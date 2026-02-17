@@ -1,229 +1,110 @@
-# LudiKids — Sistema de Gestão de Creche
+# LudiKids — Gestão de Creche
 
-Sistema completo para gestão de creche (uma unidade no MVP), com **PWA (Next.js)**, **API (NestJS)**, **PostgreSQL**, **Prisma** e **Redis**, preparado para desenvolvimento local e deploy em VPS (Ubuntu). Tudo em **PT-BR**.
-
----
-
-## Visão geral
-
-O LudiKids atende uma creche com ~27 crianças e ~6 funcionários. O sistema cobre:
-
-- **Financeiro**: recebimentos, gastos, mensalidades variáveis por serviço/turma, vencimento configurável, descontos (pontualidade, irmãos), multa/juros, relatórios e alertas.
-- **Cobrança por WhatsApp**: motor de régua (D-2, D0, D+10, atraso) com templates e outbox (MVP com envio stub).
-- **Operação**: painel diário do professor (checklist por criança), inbox da coordenação para revisão/aprovação.
-- **Cadastro**: crianças, responsáveis, endereços, autorizados a buscar, documentos, contratos (gerador de PDF no roadmap).
-- **RH**: ponto digital com geolocalização/geofence, escalas, banco de horas, relatórios (admin/moderador).
-- **Governança**: auditoria, backup diário, alertas.
+Sistema para gestão de creche: **API (NestJS)**, **Web PWA (Next.js)**, **PostgreSQL**, **Prisma**, **Redis**. Pensado para rodar em **VM Ubuntu 22.04**. Interface e textos em **PT-BR**.
 
 ---
 
-## Módulos
+## O que o sistema faz
 
-| Módulo | Descrição |
-|--------|-----------|
-| **Financeiro** | Competência mensal, faturas por contrato/serviço, pagamentos, descontos, multa/juros, gastos por categoria, relatórios e termômetro de alertas. |
-| **Operação** | Painel diário por turma (banho, alimentação, sono, lanche, observações, ocorrências). |
-| **Coordenação** | Inbox para aprovar/rejeitar registros e marcar “contatado responsável”. |
-| **RH** | Cadastro de funcionários, escalas, ponto com geolocalização (geofence), relatórios de atrasos/faltas e banco de horas. |
-| **Documentos/Contratos** | Cadastro de documentos (upload no roadmap). Contratos com múltiplos serviços; gerador de PDF (HTML→PDF) no roadmap. |
-| **WhatsApp** | Templates, regras por vencimento (D-2, D0, D+10, atraso), outbox; MVP com “enviar” em stub (arquitetura pronta para provedor real). |
-| **Governança** | Auditoria em ações sensíveis, backup diário (pg_dump em volume), alertas (inadimplência, gastos, RH). |
+- **Financeiro:** mensalidades por serviço/turma, vencimento configurável, descontos (pontualidade, irmãos), pagamentos, gastos, relatórios e alertas.
+- **Operação:** painel diário por turma (checklist por criança), inbox da coordenação para aprovar/rejeitar.
+- **Cadastro:** crianças, responsáveis, turmas, serviços, contratos.
+- **RH:** funcionários, escalas, ponto com geolocalização (geofence).
+- **WhatsApp (MVP):** templates, regras por vencimento, fila de envio (stub).
+- **Governança:** auditoria, backup diário, alertas.
 
----
-
-## Perfis e permissões (RBAC)
-
-| Perfil | Acesso |
-|--------|--------|
-| **MODERADOR** | Total: configurações, relatórios sensíveis (ex.: ranking RH), auditoria. |
-| **ADMINISTRADOR** | Financeiro, cadastros, relatórios. |
-| **COORDENAÇÃO** | Revisar/aprovar itens do painel diário, marcar contatado. |
-| **PROFESSOR** | Painel diário da turma e registros do dia (limitado). |
+**Perfis:** MODERADOR (acesso total), ADMINISTRADOR, COORDENAÇÃO, PROFESSOR.
 
 ---
 
-## Arquitetura
-
-- **Monorepo (pnpm workspace)**  
-  - `apps/api` — NestJS (API REST).  
-  - `apps/web` — Next.js (PWA).  
-  - `packages/shared` — Tipos e constantes compartilhados.  
-- **Infra**  
-  - `infra/docker-compose.yml` — Postgres, Redis, API, Web.  
-- **Banco**  
-  - PostgreSQL + Prisma (schema em `apps/api/prisma/schema.prisma`).  
-- **Filas/Jobs**  
-  - Redis (BullMQ preparado); jobs agendados com `@nestjs/schedule` (cron): WhatsApp diário, alertas, backup.  
-- **Multi-tenant**  
-  - Modelo preparado (tenant por unidade); MVP com um tenant default “LudiKids”.
-
----
-
-## Como rodar localmente
+## Rodar na VM Ubuntu 22.04
 
 ### Pré-requisitos
 
-- Node 22+  
-- pnpm 9+  
-- Docker e Docker Compose (para Postgres e Redis)
+Instale na VM:
 
-### 1. Clonar e instalar
+- **Node 22:** `curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -` e `sudo apt install -y nodejs`
+- **pnpm:** `sudo corepack enable && sudo corepack prepare pnpm@latest --activate`
+- **Docker:** [Instalação oficial Docker Engine](https://docs.docker.com/engine/install/ubuntu/) e `sudo usermod -aG docker $USER` (depois faça logout/login).
+
+### Executar o sistema
+
+Na pasta do projeto:
 
 ```bash
 cd ludikids_software
-pnpm install
-```
-
-### 2. Variáveis de ambiente
-
-```bash
 cp .env.example .env
-# Ajuste DATABASE_URL, JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD se quiser.
+chmod +x run-local.sh
+./run-local.sh
 ```
 
-### 3. Subir Postgres e Redis
+O script sobe Postgres e Redis (Docker), aplica migrations, roda o seed e inicia API e Web. Na primeira vez ele pede `pnpm install` se faltar `node_modules`.
+
+- **Web:** http://localhost:3000 (ou http://IP_DA_VM:3000)
+- **API / Swagger:** http://localhost:4000/docs
+- **Login:** `admin@ludikids.com.br` / `Admin@123`
+
+Para parar: `Ctrl+C`. Para subir de novo (banco já existe): `./run-local.sh` ou só `pnpm dev`.
+
+### Firewall (acessar por IP)
+
+Se precisar acessar de outro PC:
 
 ```bash
-docker compose -f infra/docker-compose.yml up -d postgres redis
+sudo ufw allow 3000
+sudo ufw allow 4000
+sudo ufw enable
 ```
 
-### 4. Migrations e seed
-
-```bash
-pnpm db:migrate
-pnpm db:seed
-```
-
-(Se já existir a migration aplicada, use `pnpm --filter api exec prisma migrate deploy` e depois `pnpm db:seed`.)
-
-### 5. Rodar API e Web
-
-```bash
-pnpm dev
-```
-
-- **API**: http://localhost:4000  
-- **Swagger**: http://localhost:4000/docs  
-- **Web (PWA)**: http://localhost:3000  
-
-### 6. Login
-
-- E-mail: valor de `ADMIN_EMAIL` (ex.: `admin@ludikids.com.br`)  
-- Senha: valor de `ADMIN_PASSWORD` (ex.: `Admin@123`)  
-- Perfil: MODERADOR (seed).
-
 ---
 
-## Deploy em VPS (Ubuntu) — alto nível
-
-1. **Servidor**: Ubuntu 22.04+, Docker e Docker Compose instalados.  
-2. **Repositório**: clonar o projeto na VPS.  
-3. **Env**: criar `.env` a partir de `.env.example` com valores de produção (DATABASE_URL, JWT_SECRET, NEXT_PUBLIC_API_URL, etc.).  
-4. **Build e run**:
-   ```bash
-   docker compose -f infra/docker-compose.yml up -d --build
-   ```
-5. **Migrations** (uma vez ou após deploy):
-   ```bash
-   docker compose -f infra/docker-compose.yml run --rm api pnpm exec prisma migrate deploy
-   docker compose -f infra/docker-compose.yml run --rm api pnpm exec prisma db seed
-   ```
-6. **Nginx** (recomendado na VPS):  
-   - Proxy reverso para a API (ex.: `api.seudominio.com.br` → `localhost:4000`) e para o Web (ex.: `app.seudominio.com.br` → `localhost:3000`).  
-   - SSL com Let’s Encrypt (certbot).  
-   - Definir `WEB_ORIGIN` e `NEXT_PUBLIC_API_URL` conforme os domínios usados.
-
----
-
-## Rotinas e jobs
-
-| Job | Horário (cron) | Descrição |
-|-----|----------------|-----------|
-| **WhatsApp (regras)** | 06:00 diário | Processa regras e popula a outbox (idempotente). |
-| **Alertas** | 07:00 diário | Gera alertas (inadimplência, variação de gastos, RH). |
-| **Backup** | 02:00 diário | Executa `pg_dump` e registra em `backup_runs`; arquivo em `/backups` (volume no container). |
-
-Geração de faturas do mês é sob demanda (endpoint `POST /billing/generate`).
-
----
-
-## Segurança e LGPD
-
-- **Autenticação**: JWT + refresh token; senhas com Argon2.  
-- **RBAC**: perfis MODERADOR, ADMINISTRADOR, COORDENAÇÃO, PROFESSOR.  
-- **Auditoria**: ações críticas (contratos, faturamento, pagamentos, gastos, regras) registradas em `audit_log`.  
-- **Geolocalização**: usada apenas no momento do registro de ponto (não rastreamento contínuo); validação por geofence (raio configurável no tenant).  
-- **Retenção e dados**: backup diário; políticas de retenção e LGPD devem ser definidas pelo responsável legal (documentação no roadmap).
-
----
-
-## Variáveis de ambiente principais
-
-| Variável | Descrição |
-|----------|-----------|
-| `DATABASE_URL` | URL de conexão PostgreSQL. |
-| `REDIS_URL` | URL do Redis. |
-| `JWT_SECRET` / `JWT_REFRESH_SECRET` | Segredos para tokens. |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Credenciais do usuário moderador criado no seed. |
-| `BACKUP_DIR` | Pasta dos dumps (no container: `/backups`). |
-| `NEXT_PUBLIC_API_URL` | URL da API usada pelo frontend (ex.: em produção, o domínio da API). |
-| `WEB_ORIGIN` | Origem permitida em CORS na API. |
-
----
-
-## Roadmap
-
-- Integração com gateway de pagamento (Asaas, Efí, Mercado Pago).  
-- Provedor real de WhatsApp (API oficial ou parceiro).  
-- Assinatura eletrônica em contratos.  
-- Armazenamento de arquivos em S3 (documentos, anexos de gastos).  
-- Geração de contratos em PDF (HTML→PDF) a partir de templates.  
-- Nginx e SSL documentados passo a passo para VPS.
-
----
-
-## Estrutura do repositório
+## Estrutura
 
 ```
 ludikids_software/
 ├── apps/
-│   ├── api/          # NestJS (Prisma, módulos de negócio, jobs)
-│   └── web/          # Next.js PWA
-├── packages/
-│   └── shared/       # Tipos e constantes
+│   ├── api/        # NestJS (Prisma, auth, módulos)
+│   └── web/        # Next.js PWA
+├── packages/shared/
 ├── infra/
-│   └── docker-compose.yml
+│   └── docker-compose.yml   # Postgres e Redis
 ├── .env.example
-├── pnpm-workspace.yaml
-├── package.json
-└── README.md
+├── run-local.sh
+└── package.json
 ```
 
 ---
 
-## Scripts úteis
+## Variáveis de ambiente (.env)
 
-| Comando | Descrição |
-|---------|-----------|
-| `pnpm dev` | Sobe API e Web em paralelo (dev). |
-| `pnpm dev:api` | Só API. |
-| `pnpm dev:web` | Só Web. |
-| `pnpm db:migrate` | Roda migrations (dev). |
-| `pnpm db:seed` | Roda seed (tenant, roles, admin). |
-| `pnpm db:studio` | Abre Prisma Studio. |
-| `pnpm lint` | Lint em todos os pacotes. |
-| `pnpm test` | Testes (mínimo). |
+| Variável | Uso |
+|----------|-----|
+| `DATABASE_URL` | Conexão Postgres (localhost na VM). |
+| `REDIS_URL` | Conexão Redis. |
+| `JWT_SECRET` / `JWT_REFRESH_SECRET` | Tokens de autenticação. |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Usuário criado no seed. |
+| `NEXT_PUBLIC_API_URL` | URL da API no navegador (na VM use `http://localhost:4000` ou `http://IP:4000`). |
 
 ---
 
-## Mensagens de commit sugeridas (não executadas)
+## Comandos úteis
 
-- `feat: monorepo pnpm + shared types`  
-- `feat(api): schema Prisma completo (tenant, users, billing, RH, WhatsApp, audit, backups)`  
-- `feat(api): auth JWT + refresh, RBAC, guards e seeds`  
-- `feat(api): módulos Children, Classes, Services, Contracts, Billing, Payments, Expenses`  
-- `feat(api): DailyLogs, CoordinationInbox, HR (ponto/geofence), WhatsApp (templates, regras, outbox stub)`  
-- `feat(api): Alerts, Backups (pg_dump + cron), Dashboard summary`  
-- `feat(web): Next.js PWA, login, dashboard e páginas (crianças, contratos, financeiro, diário, coordenação, RH, WhatsApp)`  
-- `chore: Docker Compose (postgres, redis, api, web) e .env.example`  
-- `docs: README completo (módulos, arquitetura, rodar local, VPS, rotinas, segurança, roadmap)`  
+| Comando | Descrição |
+|---------|-----------|
+| `pnpm dev` | Sobe API e Web. |
+| `pnpm dev:api` | Só API. |
+| `pnpm dev:web` | Só Web. |
+| `pnpm db:seed` | Recria usuário admin (seed). |
+| `pnpm db:studio` | Abre Prisma Studio no banco. |
+| `docker compose -f infra/docker-compose.yml ps` | Status dos containers. |
+| `docker compose -f infra/docker-compose.yml down` | Parar containers. |
+
+---
+
+## Rotinas automáticas (na API)
+
+- **06:00:** processamento de regras WhatsApp (outbox).
+- **07:00:** geração de alertas (inadimplência, gastos, RH).
+- **02:00:** backup (pg_dump) e registro em `backup_runs`.
+
+Faturas do mês: sob demanda via endpoint `POST /billing/generate`.
