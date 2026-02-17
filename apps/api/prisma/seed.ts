@@ -1,13 +1,14 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
+
+const ROLES = ['MODERADOR', 'ADMINISTRADOR', 'COORDENACAO', 'PROFESSOR'] as const;
 
 async function main() {
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@ludikids.com.br';
   const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@123';
 
-  // Tenant default LudiKids
   let tenant = await prisma.tenant.findFirst({ where: { slug: 'ludikids' } });
   if (!tenant) {
     tenant = await prisma.tenant.create({
@@ -28,24 +29,18 @@ async function main() {
     console.log('Tenant LudiKids criado.');
   }
 
-  // Roles (enum vem do namespace Prisma)
-  const roleNames: Prisma.RoleName[] = [
-    Prisma.RoleName.MODERADOR,
-    Prisma.RoleName.ADMINISTRADOR,
-    Prisma.RoleName.COORDENACAO,
-    Prisma.RoleName.PROFESSOR,
-  ];
-
-  for (const name of roleNames) {
+  for (const name of ROLES) {
     await prisma.role.upsert({
-      where: { name },
-      create: { name, tenantId: tenant.id },
+      where: { name: name as any },
+      create: { name: name as any, tenantId: tenant.id },
       update: {},
     });
   }
   console.log('Roles criadas.');
 
-  const moderadorRole = await prisma.role.findUnique({ where: { name: Prisma.RoleName.MODERADOR } });
+  const moderadorRole = await prisma.role.findUnique({
+    where: { name: 'MODERADOR' as any },
+  });
   if (!moderadorRole) throw new Error('Role MODERADOR não encontrada.');
 
   let user = await prisma.user.findUnique({ where: { email: adminEmail } });
@@ -65,7 +60,6 @@ async function main() {
     console.log(`Usuário moderador criado: ${adminEmail}`);
   }
 
-  // Categorias de gasto padrão
   const categories = ['Alimentação', 'Material', 'Limpeza', 'Salários', 'Outros'];
   for (const name of categories) {
     const exists = await prisma.expenseCategory.findFirst({
