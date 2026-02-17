@@ -1,4 +1,4 @@
-import { PrismaClient, RoleName } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
@@ -28,12 +28,12 @@ async function main() {
     console.log('Tenant LudiKids criado.');
   }
 
-  // Roles globais (sem tenantId para serem compartilhadas) ou por tenant
-  const roleNames: RoleName[] = [
-    RoleName.MODERADOR,
-    RoleName.ADMINISTRADOR,
-    RoleName.COORDENACAO,
-    RoleName.PROFESSOR,
+  // Roles (enum vem do namespace Prisma)
+  const roleNames: Prisma.RoleName[] = [
+    Prisma.RoleName.MODERADOR,
+    Prisma.RoleName.ADMINISTRADOR,
+    Prisma.RoleName.COORDENACAO,
+    Prisma.RoleName.PROFESSOR,
   ];
 
   for (const name of roleNames) {
@@ -45,7 +45,7 @@ async function main() {
   }
   console.log('Roles criadas.');
 
-  const moderadorRole = await prisma.role.findUnique({ where: { name: RoleName.MODERADOR } });
+  const moderadorRole = await prisma.role.findUnique({ where: { name: Prisma.RoleName.MODERADOR } });
   if (!moderadorRole) throw new Error('Role MODERADOR não encontrada.');
 
   let user = await prisma.user.findUnique({ where: { email: adminEmail } });
