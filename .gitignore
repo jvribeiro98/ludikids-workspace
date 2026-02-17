@@ -12,6 +12,9 @@ dist/
 out/
 *.tsbuildinfo
 
+# Runtime config (gerado no start do container; não commitar)
+apps/web/public/runtime-config.js
+
 # PWA
 public/sw.js
 public/workbox-*.js

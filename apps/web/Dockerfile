@@ -16,12 +16,11 @@ COPY packages ./packages
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-ARG NEXT_PUBLIC_API_URL=http://localhost:4000
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-
+# API URL é definida em runtime via entrypoint (não no build)
 WORKDIR /app/apps/web
+RUN chmod +x scripts/entrypoint.sh
 RUN pnpm build
 
 EXPOSE 3000
 
-CMD ["pnpm", "start"]
+ENTRYPOINT ["./scripts/entrypoint.sh"]

@@ -126,10 +126,12 @@ Para rodar com domínio real (ex.: `ludikids.com.br`) e HTTPS automático (Let's
 4. **Logs e healthcheck:**
 
    ```bash
+   docker compose -f infra/docker-compose.full.yml logs -f caddy
    docker compose -f infra/docker-compose.full.yml logs -f api
-   curl -s -o /dev/null -w "%{http_code}" https://api.ludikids.com.br/docs
-   curl -s -o /dev/null -w "%{http_code}" https://ludikids.com.br
+   curl -fsS https://api.SEUDOMINIO/health
+   curl -I https://SEUDOMINIO/
    ```
+   (Substitua `SEUDOMINIO` pelo seu domínio, ex.: `ludikids.com.br`.)
 
 5. **Checklist pós-deploy:**
    - Trocar a senha do admin no primeiro login.
@@ -137,9 +139,27 @@ Para rodar com domínio real (ex.: `ludikids.com.br`) e HTTPS automático (Let's
    - Testar login no navegador (CORS deve aceitar apenas `WEB_ORIGIN`).
    - Verificar certificado HTTPS no navegador.
 
-### Firewall (acessar por IP)
+### Firewall (produção com Caddy)
 
-Se precisar acessar de outro PC:
+Quando estiver usando **Docker full com Caddy**, o acesso externo é **apenas pelas portas 80 e 443**. Não exponha 3000/4000:
+
+```bash
+sudo ufw allow 80
+sudo ufw allow 443
+sudo ufw enable
+sudo ufw reload
+```
+
+Se rodar **sem Caddy** (acesso direto por IP), aí sim libere 3000 e 4000 conforme a seção "Rodar na VM" abaixo.
+
+### Troubleshooting
+
+- **Caddy não emite certificado (Let's Encrypt):** confira (1) DNS: os registros A do domínio e do subdomínio `api` devem apontar para o IP da VPS; (2) porta 80 deve estar aberta no firewall e não usada por outro serviço; (3) logs: `docker compose -f infra/docker-compose.full.yml logs -f caddy`.
+- **Web chamando localhost / "Failed to fetch":** a Web usa a URL da API em **runtime** via `runtime-config.js`, gerado no start do container a partir de `API_URL` (ou `NEXT_PUBLIC_API_URL`). Confira que o container web recebe `API_URL=https://api.SEUDOMINIO` (ou equivalente). Se o arquivo não for gerado, o entrypoint do web falha; veja logs: `docker compose -f infra/docker-compose.full.yml logs web`.
+
+### Firewall (acesso direto por IP, sem Caddy)
+
+Se estiver rodando sem Caddy (ex.: `run-local.sh` ou deploy systemd) e precisar acessar de outro PC:
 
 ```bash
 sudo ufw allow 3000
@@ -180,12 +200,14 @@ ludikids_software/
 | `REDIS_URL` | Conexão Redis. |
 | `JWT_SECRET` / `JWT_REFRESH_SECRET` | Tokens de autenticação. |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Usuário criado no seed. |
-| `NEXT_PUBLIC_API_URL` | URL da API no navegador (na VPS use `http://IP_DA_VPS:4000`). |
-| `WEB_ORIGIN` | Origens CORS (na VPS use `http://IP_DA_VPS:3000`). Várias origens: separar por vírgula. |
+| `API_URL` | URL da API em **runtime** (Docker Web: usada pelo entrypoint para gerar `runtime-config.js`). Preferida em produção. |
+| `NEXT_PUBLIC_API_URL` | Fallback da URL da API (build/dev). Na VPS sem Caddy use `http://IP_DA_VPS:4000`. |
+| `WEB_ORIGIN` | Origens CORS (na VPS use `http://IP_DA_VPS:3000` ou `https://SEUDOMINIO`). Várias origens: separar por vírgula. |
 | `BACKUP_DIR` | Pasta de backups (padrão `/backups`; no Docker use o volume `backups_data`). |
 | `BACKUP_RETENTION_COUNT` | Quantidade de backups a manter por tenant (padrão 30). |
 | `APP_DOMAIN` | Domínio principal (produção com Caddy; ex.: ludikids.com.br). |
 | `CADDY_EMAIL` | E-mail para Let's Encrypt (produção). |
+| `RUN_SEED_ON_START` | Se `true`, o entrypoint da API verifica se já existe usuário no tenant default; se não, roda o seed. Se o seed falhar, o container encerra com erro. |
 
 ---
 

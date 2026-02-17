@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { getApiUrl } from './runtimeConfig';
 
 function getToken(): string | null {
   if (typeof window === 'undefined') return null;
@@ -15,7 +15,7 @@ export async function api<T>(
     ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  const res = await fetch(`${getApiUrl()}${path}`, { ...options, headers });
   if (res.status === 401) {
     const refreshed = await refreshToken();
     if (refreshed) {
@@ -39,7 +39,7 @@ async function refreshToken(): Promise<boolean> {
   const ref = typeof window !== 'undefined' ? localStorage.getItem('refreshToken') : null;
   if (!ref) return false;
   try {
-    const res = await fetch(`${API_URL}/auth/refresh`, {
+    const res = await fetch(`${getApiUrl()}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken: ref }),

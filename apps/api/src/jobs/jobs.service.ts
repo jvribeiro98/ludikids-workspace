@@ -21,9 +21,12 @@ export class JobsService {
     const tenants = await this.prisma.tenant.findMany({ select: { id: true } });
     for (const t of tenants) {
       try {
-        await this.billing.updateOverdueInvoicesForTenant(t.id);
+        const updated = await this.billing.updateOverdueInvoicesForTenant(t.id);
+        if (updated > 0) {
+          console.log(`dailyOverdueInvoices tenantId=${t.id} updated=${updated}`);
+        }
       } catch (e) {
-        console.error('Overdue invoices', t.id, e);
+        console.error(`dailyOverdueInvoices tenantId=${t.id} error=`, e);
       }
     }
   }

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { getApiUrl } from '@/lib/runtimeConfig';
 
 interface User {
   id: string;
@@ -26,7 +27,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/auth/login`,
+      `${getApiUrl()}/auth/login`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -48,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (token) {
       try {
         await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/auth/logout`,
+          `${getApiUrl()}/auth/logout`,
           { method: 'POST', headers: { Authorization: `Bearer ${token}` } }
         );
       } catch {}
@@ -64,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
       return;
     }
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/users/me`, {
+    fetch(`${getApiUrl()}/users/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => (r.ok ? r.json() : Promise.reject()))

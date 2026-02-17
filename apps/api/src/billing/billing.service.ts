@@ -140,19 +140,24 @@ export class BillingService {
     return { totalExpected, totalPaid, totalPending, overdueCount };
   }
 
+  /**
+   * Recalcula multa/juros e marca como OVERDUE as faturas vencidas não pagas.
+   * Idempotente: multa 1x, juros proporcional aos dias; rodar todo dia não infla valores.
+   * Inclui PENDING e OVERDUE (recalcula juros diário).
+   */
   async updateOverdueInvoicesForTenant(tenantId: string): Promise<number> {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) return 0;
     const now = new Date();
-    const pending = await this.prisma.invoice.findMany({
+    const invoices = await this.prisma.invoice.findMany({
       where: {
         tenantId,
-        status: { in: [InvoiceStatus.PENDING] },
+        status: { in: [InvoiceStatus.PENDING, InvoiceStatus.OVERDUE] },
         dueDate: { lt: now },
       },
     });
     let updated = 0;
-    for (const inv of pending) {
+    for (const inv of invoices) {
       const { lateFeeAmount, interestAmount } = calcLateFeeAndInterest(
         inv.subtotal,
         inv.dueDate,
@@ -167,6 +172,20 @@ export class BillingService {
         .sub(inv.discountAmount)
         .add(lateFeeAmount)
         .add(interestAmount);
+
+      const oldData = {
+        status: inv.status,
+        lateFeeAmount: Number(inv.lateFeeAmount),
+        interestAmount: Number(inv.interestAmount),
+        total: Number(inv.total),
+      };
+      const newData = {
+        status: 'OVERDUE' as const,
+        lateFeeAmount: Number(lateFeeAmount),
+        interestAmount: Number(interestAmount),
+        total: Number(total),
+      };
+
       await this.prisma.invoice.update({
         where: { id: inv.id },
         data: {
@@ -179,16 +198,11 @@ export class BillingService {
       await this.audit.log({
         tenantId,
         userId: undefined,
-        action: 'SYSTEM_UPDATE',
+        action: 'SYSTEM_UPDATE_OVERDUE',
         entity: 'Invoice',
         entityId: inv.id,
-        newData: {
-          reason: 'overdue_recalc',
-          status: 'OVERDUE',
-          lateFeeAmount: Number(lateFeeAmount),
-          interestAmount: Number(interestAmount),
-          total: Number(total),
-        },
+        oldData,
+        newData,
       });
       updated++;
     }

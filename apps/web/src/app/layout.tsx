@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { QueryProvider } from '@/components/QueryProvider';
@@ -21,6 +22,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body>
+        <Script src="/runtime-config.js" strategy="beforeInteractive" />
         <QueryProvider>
           <AuthProvider>{children}</AuthProvider>
         </QueryProvider>

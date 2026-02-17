@@ -1,17 +1,21 @@
 # LudiKids - Stack completo para VPS (Postgres, Redis, API, Web, Caddy HTTPS)
 # Uso (na raiz do repo): docker compose -f infra/docker-compose.full.yml up -d --build
-# .env: APP_DOMAIN (ex: ludikids.com.br), CADDY_EMAIL, JWT_SECRET, JWT_REFRESH_SECRET, etc.
+# .env: APP_DOMAIN, CADDY_EMAIL, API_URL (ou NEXT_PUBLIC_API_URL), WEB_ORIGIN, JWT_*, etc.
+# Externamente expostos apenas 80/443 (Caddy). API e Web só na rede interna.
+
+networks:
+  internal:
+    driver: bridge
 
 services:
   postgres:
     image: postgres:16-alpine
     container_name: ludikids-postgres
+    networks: [internal]
     environment:
       POSTGRES_USER: ludikids
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ludikids}
       POSTGRES_DB: ludikids
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -23,8 +27,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: ludikids-redis
-    ports:
-      - "6379:6379"
+    networks: [internal]
     volumes:
       - redis_data:/data
     healthcheck:
@@ -38,6 +41,7 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     container_name: ludikids-api
+    networks: [internal]
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://ludikids:${POSTGRES_PASSWORD:-ludikids}@postgres:5432/ludikids
@@ -49,8 +53,8 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       RUN_SEED_ON_START: ${RUN_SEED_ON_START:-true}
-    ports:
-      - "4000:4000"
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@ludikids.com.br}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     volumes:
       - backups_data:/backups
     depends_on:
@@ -58,25 +62,37 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/health', (r)=>{ let d=''; r.on('data',c=>d+=c); r.on('end',()=>process.exit(r.statusCode===200?0:1)); }).on('error',()=>process.exit(1));"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     container_name: ludikids-web
+    networks: [internal]
     environment:
       NODE_ENV: production
+      API_URL: ${API_URL}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-    ports:
-      - "3000:3000"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', (r)=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1));"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   caddy:
     image: caddy:2-alpine
     container_name: ludikids-caddy
+    networks: [internal]
     ports:
       - "80:80"
       - "443:443"
@@ -88,8 +104,10 @@ services:
       APP_DOMAIN: ${APP_DOMAIN:-localhost}
       CADDY_EMAIL: ${CADDY_EMAIL:-}
     depends_on:
-      - web
-      - api
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
