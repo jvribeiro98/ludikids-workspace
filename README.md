@@ -94,7 +94,8 @@ ludikids_software/
 | `pnpm dev` | Sobe API e Web. |
 | `pnpm dev:api` | Só API. |
 | `pnpm dev:web` | Só Web. |
-| `pnpm db:seed` | Recria usuário admin (seed). |
+| `pnpm --filter api exec prisma generate` | Gera o cliente Prisma (rode antes do seed se der erro). |
+| `pnpm db:seed` | Recria usuário admin (seed). Rode `prisma generate` antes se precisar. |
 | `pnpm db:studio` | Abre Prisma Studio no banco. |
 | `docker compose -f infra/docker-compose.yml ps` | Status dos containers. |
 | `docker compose -f infra/docker-compose.yml down` | Parar containers. |

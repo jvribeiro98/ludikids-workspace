@@ -31,12 +31,15 @@ docker compose -f infra/docker-compose.yml up -d postgres redis
 echo "2. Aguardando Postgres (15s)..."
 sleep 15
 
-echo "3. Aplicando migrations..."
+echo "3. Gerando cliente Prisma..."
+pnpm --filter api exec prisma generate
+
+echo "4. Aplicando migrations..."
 export $(grep -E '^DATABASE_URL=' .env | xargs)
 pnpm --filter api exec prisma migrate deploy
 
-echo "4. Rodando seed (cria usuário admin)..."
+echo "5. Rodando seed (cria usuário admin)..."
 pnpm db:seed
 
-echo "5. Iniciando API (4000) e Web (3000). Ctrl+C para parar."
+echo "6. Iniciando API (4000) e Web (3000). Ctrl+C para parar."
 pnpm dev
