@@ -1,0 +1,688 @@
+// LudiKids - Schema Prisma MVP
+// Multi-tenant preparado; começa com 1 unidade (tenant default)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========== ENUMS ==========
+
+enum RoleName {
+  MODERADOR
+  ADMINISTRADOR
+  COORDENACAO
+  PROFESSOR
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  PARTIAL
+  CANCELLED
+}
+
+enum PaymentMethod {
+  PIX
+  CASH
+  CARD
+  TRANSFER
+  OTHER
+}
+
+enum InboxStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CONTACTED
+}
+
+enum PunchType {
+  ENTRY
+  EXIT
+}
+
+enum MessageRuleTrigger {
+  D_MINUS_2   // 2 dias antes do vencimento
+  D_0         // no dia do vencimento
+  D_PLUS_10   // 10 dias após vencimento
+  OVERDUE     // faturas em atraso
+}
+
+enum OutboxStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum DocumentType {
+  PLANO_SAUDE
+  LAUDO
+  CONTRATO
+  OUTRO
+}
+
+enum AuthorizedPickupType {
+  PERSON
+  TRANSPORTE_ESCOLAR
+}
+
+// ========== TENANT & CONFIG ==========
+
+model Tenant {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Configuração da creche (JSON ou campos; uso campos para queries)
+  address           String?
+  latitude          Float?
+  longitude         Float?
+  geofenceRadiusMeters Int?   @default(200) // raio para ponto digital
+  dueDayDefault     Int?     @default(10)   // dia padrão de vencimento
+
+  // Multa/juros (prática brasileira)
+  lateFeePercent    Decimal? @db.Decimal(5, 2) @default(2)
+  interestPercentPerMonth Decimal? @db.Decimal(5, 2) @default(1)
+  lateFeeMaxPercent Decimal? @db.Decimal(5, 2) @default(10)
+
+  // Descontos
+  punctualityDiscountPercent Decimal? @db.Decimal(5, 2) @default(5)
+  siblingDiscountPercent    Decimal? @db.Decimal(5, 2) @default(10)
+  siblingMaxCount           Int?     @default(2)
+
+  users             User[]
+  children          Child[]
+  classes           Class[]
+  services          Service[]
+  billingCycles     BillingCycle[]
+  expenseCategories ExpenseCategory[]
+  roles             Role[]
+  auditLogs         AuditLog[]
+  staffProfiles     StaffProfile[]
+  messageTemplates  MessageTemplate[]
+  messageRules      MessageRule[]
+  messageOutbox     MessageOutbox[]
+  alerts            Alert[]
+  backupRuns        BackupRun[]
+}
+
+// ========== USUÁRIOS E RBAC ==========
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  tenantId     String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  refreshToken String?
+
+  tenant Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userRoles UserRole[]
+}
+
+model Role {
+  id        String   @id @default(cuid())
+  name      RoleName @unique
+  tenantId  String?
+  createdAt DateTime @default(now())
+
+  tenant    Tenant?    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userRoles UserRole[]
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId   String
+  roleId   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+}
+
+// ========== AUDITORIA ==========
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  tenantId   String
+  userId     String?
+  action     String
+  entity     String
+  entityId   String?
+  oldData    Json?
+  newData    Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+// ========== CRIANÇAS, RESPONSÁVEIS, ENDEREÇOS ==========
+
+model Child {
+  id          String    @id @default(cuid())
+  tenantId    String
+  name        String
+  birthDate   DateTime?
+  classId     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  class        Class?    @relation(fields: [classId], references: [id], onDelete: SetNull)
+  guardians    ChildGuardian[]
+  addresses    ChildAddress[]
+  authorizedPickups AuthorizedPickup[]
+  documents    ChildDocument[]
+  contracts    Contract[]
+  invoices     Invoice[]
+  dailyLogItems DailyLogItem[]
+  coordinationInboxItems CoordinationInboxItem[]
+
+  @@index([tenantId])
+  @@index([classId])
+}
+
+model Guardian {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  cpf       String?
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  childGuardians ChildGuardian[]
+}
+
+model ChildGuardian {
+  id         String   @id @default(cuid())
+  childId    String
+  guardianId String
+  relation   String?  // Pai, Mãe, Avô, etc.
+  isResponsible Boolean @default(false)
+  createdAt  DateTime @default(now())
+
+  child    Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  guardian Guardian @relation(fields: [guardianId], references: [id], onDelete: Cascade)
+
+  @@unique([childId, guardianId])
+  @@index([childId])
+  @@index([guardianId])
+}
+
+model ChildAddress {
+  id        String   @id @default(cuid())
+  childId   String
+  label     String?  // Casa mãe, Casa pai, Avós
+  street    String
+  number    String?
+  complement String?
+  neighborhood String?
+  city      String
+  state     String
+  zipCode   String?
+  createdAt DateTime @default(now())
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+}
+
+model AuthorizedPickup {
+  id       String             @id @default(cuid())
+  childId  String
+  type     AuthorizedPickupType
+  name     String?
+  phone    String?
+  document String?
+  createdAt DateTime @default(now())
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+}
+
+model ChildDocument {
+  id         String       @id @default(cuid())
+  childId    String
+  type       DocumentType
+  fileName   String
+  filePath   String
+  mimeType   String?
+  sizeBytes  Int?
+  createdAt  DateTime     @default(now())
+
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([childId])
+}
+
+// ========== TURMAS E SERVIÇOS ==========
+
+model Class {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  description String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  children Child[]
+  dailyLogs DailyLog[]
+
+  @@index([tenantId])
+}
+
+model Service {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String   // Integral, Meio período, Reforço, etc.
+  description String?
+  basePrice   Decimal  @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contractServices ContractService[]
+  invoiceItems   InvoiceItem[]
+
+  @@index([tenantId])
+}
+
+// ========== CONTRATOS ==========
+// Vencimento: dia do mês configurado no contrato (escolha do responsável)
+
+model Contract {
+  id          String    @id @default(cuid())
+  tenantId    String
+  childId     String
+  startDate   DateTime
+  endDate     DateTime?
+  dueDay      Int       // dia do mês para vencimento (1-28)
+  punctualityDiscount Boolean @default(true)
+  siblingDiscount     Boolean @default(false)
+  siblingCount        Int     @default(0)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  child   Child   @relation(fields: [childId], references: [id], onDelete: Cascade)
+  contractServices ContractService[]
+  invoices Invoice[]
+
+  @@index([tenantId])
+  @@index([childId])
+  @@index([startDate, endDate])
+}
+
+model ContractService {
+  id         String   @id @default(cuid())
+  contractId String
+  serviceId  String
+  unitPrice  Decimal  @db.Decimal(10, 2)
+  createdAt  DateTime @default(now())
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@unique([contractId, serviceId])
+  @@index([contractId])
+  @@index([serviceId])
+}
+
+// ========== FATURAMENTO ==========
+
+model BillingCycle {
+  id        String   @id @default(cuid())
+  tenantId  String
+  year      Int
+  month     Int
+  closedAt  DateTime?
+  createdAt DateTime @default(now())
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+
+  @@unique([tenantId, year, month])
+  @@index([tenantId])
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  tenantId       String
+  billingCycleId String
+  childId        String
+  contractId     String
+  dueDate        DateTime
+  status         InvoiceStatus @default(PENDING)
+  subtotal       Decimal       @db.Decimal(12, 2)
+  discountAmount Decimal       @db.Decimal(12, 2) @default(0)
+  lateFeeAmount  Decimal       @db.Decimal(12, 2) @default(0)
+  interestAmount Decimal       @db.Decimal(12, 2) @default(0)
+  total          Decimal       @db.Decimal(12, 2)
+  paidAmount     Decimal       @db.Decimal(12, 2) @default(0)
+  paidAt         DateTime?
+  punctualityApplied Boolean   @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  billingCycle BillingCycle  @relation(fields: [billingCycleId], references: [id], onDelete: Cascade)
+  child        Child         @relation(fields: [childId], references: [id], onDelete: Cascade)
+  contract     Contract      @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  items        InvoiceItem[]
+  payments     Payment[]
+  messageOutbox MessageOutbox[]
+
+  @@unique([billingCycleId, childId])
+  @@index([tenantId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model InvoiceItem {
+  id         String   @id @default(cuid())
+  invoiceId  String
+  serviceId  String
+  description String?
+  quantity   Int      @default(1)
+  unitPrice  Decimal  @db.Decimal(10, 2)
+  total      Decimal  @db.Decimal(12, 2)
+  createdAt  DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@index([invoiceId])
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  tenantId    String
+  invoiceId   String
+  amount      Decimal       @db.Decimal(12, 2)
+  method      PaymentMethod
+  paidAt      DateTime
+  reference   String?
+  notes       String?
+  createdAt   DateTime      @default(now())
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([invoiceId])
+}
+
+// ========== GASTOS ==========
+
+model ExpenseCategory {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  createdAt DateTime @default(now())
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  expenses Expense[]
+}
+
+model Expense {
+  id         String   @id @default(cuid())
+  tenantId   String
+  categoryId String
+  amount     Decimal  @db.Decimal(12, 2)
+  date       DateTime
+  description String?
+  attachmentPath String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([categoryId])
+  @@index([date])
+}
+
+// ========== DIÁRIO / OPERAÇÃO ==========
+
+model DailyLog {
+  id        String   @id @default(cuid())
+  classId   String
+  date      DateTime @db.Date
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  class Class          @relation(fields: [classId], references: [id], onDelete: Cascade)
+  items DailyLogItem[]
+
+  @@unique([classId, date])
+  @@index([classId])
+  @@index([date])
+}
+
+model DailyLogItem {
+  id          String   @id @default(cuid())
+  dailyLogId  String
+  childId     String
+  bath        Boolean?
+  feeding     String?
+  sleepMinutes Int?
+  snack       String?
+  observations String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  dailyLog  DailyLog  @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
+  child     Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+  incidents Incident[]
+  coordinationInboxItems CoordinationInboxItem[]
+
+  @@unique([dailyLogId, childId])
+  @@index([dailyLogId])
+  @@index([childId])
+}
+
+model Incident {
+  id             String   @id @default(cuid())
+  dailyLogItemId String
+  description    String
+  severity       String?  // leve, moderado, grave
+  createdAt      DateTime @default(now())
+
+  dailyLogItem DailyLogItem @relation(fields: [dailyLogItemId], references: [id], onDelete: Cascade)
+
+  @@index([dailyLogItemId])
+}
+
+// ========== INBOX COORDENAÇÃO ==========
+
+model CoordinationInboxItem {
+  id                String      @id @default(cuid())
+  dailyLogItemId    String?
+  childId           String?
+  status            InboxStatus @default(PENDING)
+  reviewedAt        DateTime?
+  reviewedBy        String?
+  contactedGuardian Boolean     @default(false)
+  notes             String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  dailyLogItem DailyLogItem? @relation(fields: [dailyLogItemId], references: [id], onDelete: SetNull)
+  child        Child?        @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([dailyLogItemId])
+  @@index([childId])
+}
+
+// ========== RH ==========
+
+model StaffProfile {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String?  // opcional: pode vincular a User
+  name      String
+  email     String?
+  phone     String?
+  hireDate  DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  workSchedules  WorkSchedule[]
+  timeClockEvents TimeClockEvent[]
+
+  @@index([tenantId])
+}
+
+model WorkSchedule {
+  id            String   @id @default(cuid())
+  staffProfileId String
+  dayOfWeek     Int      // 0-6 domingo-sábado
+  startTime     String   // "08:00"
+  endTime       String   // "17:00"
+  createdAt     DateTime @default(now())
+
+  staffProfile StaffProfile @relation(fields: [staffProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([staffProfileId, dayOfWeek])
+  @@index([staffProfileId])
+}
+
+model TimeClockEvent {
+  id             String    @id @default(cuid())
+  staffProfileId String
+  type           PunchType
+  punchedAt      DateTime  @default(now())
+  latitude       Float?
+  longitude      Float?
+  accuracy       Float?
+  validated      Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+
+  staffProfile StaffProfile @relation(fields: [staffProfileId], references: [id], onDelete: Cascade)
+
+  @@index([staffProfileId])
+  @@index([punchedAt])
+}
+
+// ========== ALERTAS ==========
+
+model Alert {
+  id        String   @id @default(cuid())
+  tenantId  String
+  type      String   // OVERDUE_INVOICES, EXPENSE_SPIKE, STAFF_ABSENCE
+  title     String
+  message   String
+  metadata  Json?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([type])
+  @@index([readAt])
+}
+
+// ========== WHATSAPP (MVP) ==========
+
+model MessageTemplate {
+  id        String   @id @default(cuid())
+  tenantId  String
+  code      String   // D_MINUS_2, D_0, etc.
+  name      String
+  body      String   // texto com placeholders {nome}, {valor}, {vencimento}
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messageRules MessageRule[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+model MessageRule {
+  id         String   @id @default(cuid())
+  tenantId   String
+  trigger    MessageRuleTrigger
+  templateId String?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  template MessageTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, trigger])
+  @@index([tenantId])
+}
+
+model MessageOutbox {
+  id         String       @id @default(cuid())
+  tenantId   String
+  invoiceId  String?
+  phone      String
+  templateCode String?
+  body       String
+  status     OutboxStatus @default(PENDING)
+  sentAt     DateTime?
+  errorMessage String?
+  createdAt  DateTime     @default(now())
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Relação MessageRule -> MessageTemplate (templateId em MessageRule)
+// Ajuste: MessageTemplate não tem relation com MessageRule no schema acima; MessageRule tem templateId
+// Precisamos adicionar a relation em MessageTemplate para MessageRule[]
+// Já está: MessageRule tem template MessageTemplate?
+
+// ========== BACKUP ==========
+
+model BackupRun {
+  id        String   @id @default(cuid())
+  tenantId  String
+  path      String
+  sizeBytes Int?
+  success   Boolean
+  errorMessage String?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([createdAt])
+}

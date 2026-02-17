@@ -1,0 +1,22 @@
+{
+  "name": "ludikids-software",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema de gestão de creche LudiKids - PWA + API",
+  "scripts": {
+    "dev": "pnpm run --parallel dev",
+    "dev:api": "pnpm --filter api dev",
+    "dev:web": "pnpm --filter web dev",
+    "build": "pnpm run -r build",
+    "db:migrate": "pnpm --filter api exec prisma migrate dev",
+    "db:migrate:deploy": "pnpm --filter api exec prisma migrate deploy",
+    "db:seed": "pnpm --filter api exec prisma db seed",
+    "db:studio": "pnpm --filter api exec prisma studio",
+    "lint": "pnpm run -r lint",
+    "test": "pnpm run -r test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

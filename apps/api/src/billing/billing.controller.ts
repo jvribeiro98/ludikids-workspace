@@ -1,0 +1,63 @@
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { BillingService } from './billing.service';
+
+@ApiTags('Faturamento')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Controller('billing')
+export class BillingController {
+  constructor(private billingService: BillingService) {}
+
+  @Post('generate')
+  generateInvoices(
+    @CurrentUser('tenantId') tenantId: string,
+    @Body() body: { year: number; month: number },
+  ) {
+    return this.billingService.generateInvoices(tenantId, body.year, body.month);
+  }
+
+  @Get('cycles')
+  getOrCreateCycle(
+    @CurrentUser('tenantId') tenantId: string,
+    @Query('year') year: string,
+    @Query('month') month: string,
+  ) {
+    return this.billingService.getOrCreateBillingCycle(
+      tenantId,
+      parseInt(year, 10),
+      parseInt(month, 10),
+    );
+  }
+
+  @Get('invoices')
+  listInvoices(
+    @CurrentUser('tenantId') tenantId: string,
+    @Query('billingCycleId') billingCycleId: string,
+  ) {
+    return this.billingService.listInvoices(tenantId, billingCycleId);
+  }
+
+  @Get('summary')
+  getSummary(
+    @CurrentUser('tenantId') tenantId: string,
+    @Query('year') year: string,
+    @Query('month') month: string,
+  ) {
+    return this.billingService.getMonthlySummary(
+      tenantId,
+      parseInt(year, 10),
+      parseInt(month, 10),
+    );
+  }
+
+  @Get('overdue')
+  getOverdue(
+    @CurrentUser('tenantId') tenantId: string,
+    @Query('referenceMonth') referenceMonth?: string,
+  ) {
+    return this.billingService.getOverdueReport(tenantId, referenceMonth);
+  }
+}

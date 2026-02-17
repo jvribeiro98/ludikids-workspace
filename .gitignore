@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build / output
+dist/
+.next/
+out/
+*.tsbuildinfo
+
+# PWA
+public/sw.js
+public/workbox-*.js
+public/worker-*.js
+public/sw.js.map
+public/workbox-*.js.map
+public/worker-*.js.map
+
+# IDE / OS
+.idea/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db
+
+# Backups (pasta local de dumps - não ignorar apps/api/src/backups/)
+/backups/
+
+# Prisma
+apps/api/prisma/*.db
+apps/api/prisma/*.db-journal
