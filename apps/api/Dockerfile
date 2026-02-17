@@ -1,30 +1,31 @@
-FROM node:22-alpine AS base
+FROM node:22-bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  postgresql-client \
+  && rm -rf /var/lib/apt/lists/*
+
 RUN corepack enable && corepack prepare pnpm@latest --activate
+
 WORKDIR /app
 
-FROM base AS deps
-COPY package.json pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/shared/package.json ./packages/shared/
-RUN pnpm install --frozen-lockfile
 
-FROM base AS builder
-COPY . .
-RUN pnpm install
-RUN pnpm --filter @ludikids/shared build
+RUN pnpm install --frozen-lockfile || pnpm install
+
+COPY apps ./apps
+COPY packages ./packages
+
 RUN pnpm --filter api exec prisma generate
 RUN pnpm --filter api build
 
-FROM node:22-alpine AS runner
-WORKDIR /app
-# NODE_ENV=production só na execução (entrypoint), para não afetar disponibilidade do Prisma
-COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/package.json ./
-COPY --from=builder /app/apps/api/prisma ./prisma
-COPY --from=builder /app/apps/api/entrypoint.sh ./entrypoint.sh
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/pnpm-workspace.yaml ./
-RUN chmod +x /app/entrypoint.sh
+ENV NODE_ENV=production
+ENV BACKUP_DIR=/backups
+
+COPY apps/api/scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 4000
-CMD ["/app/entrypoint.sh"]
+
+ENTRYPOINT ["/entrypoint.sh"]

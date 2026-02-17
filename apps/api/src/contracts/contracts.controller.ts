@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ContractsService } from './contracts.service';
 import { CreateContractDto } from './dto/create-contract.dto';
+import { UpdateContractDto } from './dto/update-contract.dto';
 
 @ApiTags('Contratos')
 @ApiBearerAuth()
@@ -15,9 +16,10 @@ export class ContractsController {
   @Post()
   create(
     @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser('sub') userId: string,
     @Body() dto: CreateContractDto,
   ) {
-    return this.contractsService.create(tenantId, dto);
+    return this.contractsService.create(tenantId, userId, dto);
   }
 
   @Get()
@@ -39,5 +41,24 @@ export class ContractsController {
     @Param('childId') childId: string,
   ) {
     return this.contractsService.findActiveByChild(tenantId, childId);
+  }
+
+  @Put(':id')
+  update(
+    @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser('sub') userId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateContractDto,
+  ) {
+    return this.contractsService.update(tenantId, userId, id, dto);
+  }
+
+  @Delete(':id')
+  remove(
+    @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser('sub') userId: string,
+    @Param('id') id: string,
+  ) {
+    return this.contractsService.remove(tenantId, userId, id);
   }
 }

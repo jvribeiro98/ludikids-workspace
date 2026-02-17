@@ -61,9 +61,11 @@ export class DailyLogsService {
     });
   }
 
-  async sendToCoordination(dailyLogItemId: string, childId: string) {
+  async sendToCoordination(tenantId: string, dailyLogItemId: string, childId: string) {
+    const child = await this.prisma.child.findFirst({ where: { id: childId, tenantId } });
+    if (!child) throw new Error('Criança não encontrada');
     return this.prisma.coordinationInboxItem.create({
-      data: { dailyLogItemId, childId, status: 'PENDING' },
+      data: { tenantId, dailyLogItemId, childId, status: 'PENDING' },
     });
   }
 }

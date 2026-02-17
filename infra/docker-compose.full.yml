@@ -1,0 +1,79 @@
+# LudiKids - Stack completo para VPS (Postgres, Redis, API, Web)
+# Uso (na raiz do repo): docker compose -f infra/docker-compose.full.yml up -d --build
+# .env na raiz com DATABASE_URL, REDIS_URL, JWT_SECRET, NEXT_PUBLIC_API_URL, WEB_ORIGIN, etc.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ludikids-postgres
+    environment:
+      POSTGRES_USER: ludikids
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ludikids}
+      POSTGRES_DB: ludikids
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ludikids"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ludikids-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: ludikids-api
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://ludikids:${POSTGRES_PASSWORD:-ludikids}@postgres:5432/ludikids
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-ludikids-jwt-change-me}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-ludikids-refresh-change-me}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      BACKUP_DIR: /backups
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+    ports:
+      - "4000:4000"
+    volumes:
+      - backups_data:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    container_name: ludikids-web
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:
+  backups_data:

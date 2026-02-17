@@ -15,9 +15,10 @@ export class WhatsAppController {
   @Post('templates')
   createTemplate(
     @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser('sub') userId: string,
     @Body() body: { code: string; name: string; body: string },
   ) {
-    return this.whatsAppService.createTemplate(tenantId, body.code, body.name, body.body);
+    return this.whatsAppService.createTemplate(tenantId, userId, body.code, body.name, body.body);
   }
 
   @Get('templates')
@@ -33,9 +34,10 @@ export class WhatsAppController {
   @Post('rules')
   upsertRule(
     @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser('sub') userId: string,
     @Body() body: { trigger: MessageRuleTrigger; templateId?: string; active?: boolean },
   ) {
-    return this.whatsAppService.upsertRule(tenantId, body.trigger, body.templateId, body.active ?? true);
+    return this.whatsAppService.upsertRule(tenantId, userId, body.trigger, body.templateId, body.active ?? true);
   }
 
   @Get('outbox')

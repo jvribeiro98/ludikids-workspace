@@ -18,24 +18,26 @@ export class CoordinationInboxController {
 
   @Patch(':id/approve')
   approve(
+    @CurrentUser('tenantId') tenantId: string,
     @Param('id') id: string,
     @CurrentUser('sub') userId: string,
     @Body() body: { notes?: string },
   ) {
-    return this.coordinationInboxService.approve(id, userId, body.notes);
+    return this.coordinationInboxService.approve(tenantId, id, userId, body.notes);
   }
 
   @Patch(':id/reject')
   reject(
+    @CurrentUser('tenantId') tenantId: string,
     @Param('id') id: string,
     @CurrentUser('sub') userId: string,
     @Body() body: { notes?: string },
   ) {
-    return this.coordinationInboxService.reject(id, userId, body.notes);
+    return this.coordinationInboxService.reject(tenantId, id, userId, body.notes);
   }
 
   @Patch(':id/contacted')
-  markContacted(@Param('id') id: string) {
-    return this.coordinationInboxService.markContacted(id);
+  markContacted(@CurrentUser('tenantId') tenantId: string, @Param('id') id: string) {
+    return this.coordinationInboxService.markContacted(tenantId, id);
   }
 }

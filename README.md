@@ -44,7 +44,49 @@ O script sobe Postgres e Redis (Docker), aplica migrations, roda o seed e inicia
 - **API / Swagger:** http://localhost:4000/docs
 - **Login:** `admin@ludikids.com.br` / `Admin@123`
 
+**Se aparecer "Failed to fetch" ao acessar pelo IP da VPS:** confira na ordem: (1) `.env` com `NEXT_PUBLIC_API_URL=http://IP_DA_VPS:4000` (ex.: `http://131.196.199.143:4000`); (2) firewall liberando a porta 4000 (`sudo ufw allow 4000` e `sudo ufw reload`); (3) código em dia (`git pull`) e app reiniciado (`Ctrl+C` e `./run-local.sh`).
+
 Para parar: `Ctrl+C`. Para subir de novo (banco já existe): `./run-local.sh` ou só `pnpm dev`.
+
+### Rodar em produção na VPS (sempre ligado)
+
+Para deixar a aplicação rodando direto (sobe com a máquina e reinicia se cair):
+
+1. **Configure o `.env`** na raiz do projeto (incluindo `NEXT_PUBLIC_API_URL=http://IP_DA_VPS:4000` e `WEB_ORIGIN=http://IP_DA_VPS:3000`).
+2. **Rode o deploy uma vez:**
+   ```bash
+   chmod +x scripts/deploy-vps.sh
+   ./scripts/deploy-vps.sh
+   ```
+   O script sobe Postgres/Redis, faz build da API e da Web, aplica migrations, seed e instala dois serviços systemd: **ludikids-api** (porta 4000) e **ludikids-web** (porta 3000). Eles ficam habilitados para iniciar no boot.
+
+3. **Comandos dos serviços:**
+   ```bash
+   sudo systemctl status ludikids-api ludikids-web   # status
+   sudo systemctl restart ludikids-api ludikids-web  # reiniciar
+   sudo journalctl -u ludikids-api -f                 # log da API
+   sudo journalctl -u ludikids-web -f                 # log da Web
+   ```
+
+**Atualizar o código na VPS:** `git pull`, depois `pnpm build` e `sudo systemctl restart ludikids-api ludikids-web`. Se houver nova migration, rode `set -a && source .env && set +a && pnpm --filter api exec prisma migrate deploy` antes de reiniciar.
+
+### Deploy em VPS (Docker — tudo em containers)
+
+Para subir a aplicação inteira com Docker (Postgres, Redis, API e Web):
+
+1. **Na raiz do repositório**, crie o `.env` com as variáveis necessárias (veja tabela abaixo). Para acesso externo: `NEXT_PUBLIC_API_URL=http://IP_DA_VPS:4000` e `WEB_ORIGIN=http://IP_DA_VPS:3000`.
+2. **Build e subida:**
+   ```bash
+   docker compose -f infra/docker-compose.full.yml up -d --build
+   ```
+3. **Rodar o seed (uma vez)** para criar o tenant e o usuário admin:
+   ```bash
+   docker compose -f infra/docker-compose.full.yml exec api sh -c "cd /app && pnpm db:seed"
+   ```
+4. **Logs:** `docker compose -f infra/docker-compose.full.yml logs -f api` ou `logs -f web`.
+5. **Parar:** `docker compose -f infra/docker-compose.full.yml down`. Volumes (postgres_data, redis_data, backups_data) são mantidos.
+
+Backups (pg_dump em formato custom) ficam no volume `backups_data`, montado em `/backups` no container da API.
 
 ### Firewall (acessar por IP)
 
@@ -67,7 +109,12 @@ ludikids_software/
 │   └── web/        # Next.js PWA
 ├── packages/shared/
 ├── infra/
-│   └── docker-compose.yml   # Postgres e Redis
+│   ├── docker-compose.yml      # Postgres e Redis (dev)
+│   ├── docker-compose.full.yml # Postgres + Redis + API + Web (VPS)
+│   └── systemd/                # ludikids-api.service, ludikids-web.service
+├── scripts/
+│   ├── deploy-vps.sh        # build + instala serviços systemd
+│   └── seed.sh
 ├── .env.example
 ├── run-local.sh
 └── package.json
@@ -83,7 +130,9 @@ ludikids_software/
 | `REDIS_URL` | Conexão Redis. |
 | `JWT_SECRET` / `JWT_REFRESH_SECRET` | Tokens de autenticação. |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Usuário criado no seed. |
-| `NEXT_PUBLIC_API_URL` | URL da API no navegador (na VM use `http://localhost:4000` ou `http://IP:4000`). |
+| `NEXT_PUBLIC_API_URL` | URL da API no navegador (na VPS use `http://IP_DA_VPS:4000`). |
+| `WEB_ORIGIN` | Origens CORS (na VPS use `http://IP_DA_VPS:3000`). Várias origens: separar por vírgula. |
+| `BACKUP_DIR` | Pasta de backups (padrão `/backups`; no Docker use o volume `backups_data`). |
 
 ---
 
@@ -100,6 +149,7 @@ ludikids_software/
 | `docker compose -f infra/docker-compose.yml ps` | Status dos containers. |
 | `docker compose -f infra/docker-compose.yml down` | Parar containers. |
 | `./scripts/seed.sh` | Gera cliente Prisma e roda seed (carrega .env da raiz). |
+| `./scripts/deploy-vps.sh` | Build + instala systemd para rodar em produção na VPS. |
 
 ### Se o `git pull` rejeitar por alterações locais
 
@@ -125,8 +175,9 @@ Ou use `./scripts/seed.sh` (já carrega .env e roda generate + seed).
 
 ## Rotinas automáticas (na API)
 
+- **01:00:** atualização de faturas vencidas (status OVERDUE, multa/juros).
+- **02:00:** backup (pg_dump, formato .dump) e registro em `backup_runs`.
 - **06:00:** processamento de regras WhatsApp (outbox).
 - **07:00:** geração de alertas (inadimplência, gastos, RH).
-- **02:00:** backup (pg_dump) e registro em `backup_runs`.
 
 Faturas do mês: sob demanda via endpoint `POST /billing/generate`.

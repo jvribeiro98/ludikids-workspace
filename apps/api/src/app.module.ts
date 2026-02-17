@@ -27,7 +27,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env', '../.env'],
+      envFilePath: ['.env', '../.env', '../../.env'],
     }),
     ScheduleModule.forRoot(),
     PrismaModule,

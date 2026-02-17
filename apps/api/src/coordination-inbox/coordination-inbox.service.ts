@@ -7,8 +7,8 @@ export class CoordinationInboxService {
   constructor(private prisma: PrismaService) {}
 
   async listPending(tenantId: string) {
-    const items = await this.prisma.coordinationInboxItem.findMany({
-      where: { status: 'PENDING', childId: { not: null }, child: { tenantId } },
+    return this.prisma.coordinationInboxItem.findMany({
+      where: { tenantId, status: 'PENDING' },
       include: {
         child: true,
         dailyLogItem: {
@@ -17,26 +17,25 @@ export class CoordinationInboxService {
       },
       orderBy: { createdAt: 'desc' },
     });
-    return items;
   }
 
-  async approve(id: string, userId: string, notes?: string) {
+  async approve(tenantId: string, id: string, userId: string, notes?: string) {
     return this.prisma.coordinationInboxItem.update({
-      where: { id },
+      where: { id, tenantId },
       data: { status: InboxStatus.APPROVED, reviewedAt: new Date(), reviewedBy: userId, notes },
     });
   }
 
-  async reject(id: string, userId: string, notes?: string) {
+  async reject(tenantId: string, id: string, userId: string, notes?: string) {
     return this.prisma.coordinationInboxItem.update({
-      where: { id },
+      where: { id, tenantId },
       data: { status: InboxStatus.REJECTED, reviewedAt: new Date(), reviewedBy: userId, notes },
     });
   }
 
-  async markContacted(id: string) {
+  async markContacted(tenantId: string, id: string) {
     return this.prisma.coordinationInboxItem.update({
-      where: { id },
+      where: { id, tenantId },
       data: { contactedGuardian: true },
     });
   }

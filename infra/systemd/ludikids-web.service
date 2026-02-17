@@ -1,0 +1,18 @@
+[Unit]
+Description=LudiKids Web (Next.js)
+After=network.target ludikids-api.service
+Wants=ludikids-api.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=__APP_ROOT__/apps/web
+EnvironmentFile=__APP_ROOT__/.env
+Environment=NODE_ENV=production
+Environment=PORT=3000
+ExecStart=/usr/bin/node ./node_modules/.bin/next start
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

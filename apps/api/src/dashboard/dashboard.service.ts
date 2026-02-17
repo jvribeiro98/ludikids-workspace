@@ -50,7 +50,7 @@ export class DashboardService {
     });
 
     const pendingInbox = await this.prisma.coordinationInboxItem.count({
-      where: { status: 'PENDING', child: { tenantId } },
+      where: { tenantId, status: 'PENDING' },
     });
 
     return {

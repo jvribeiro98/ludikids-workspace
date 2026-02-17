@@ -15,9 +15,10 @@ export class ExpensesController {
   @Post()
   create(
     @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser('sub') userId: string,
     @Body() dto: CreateExpenseDto,
   ) {
-    return this.expensesService.create(tenantId, dto);
+    return this.expensesService.create(tenantId, userId, dto);
   }
 
   @Get()
@@ -43,14 +44,19 @@ export class ExpensesController {
   @Put(':id')
   update(
     @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser('sub') userId: string,
     @Param('id') id: string,
     @Body() dto: Partial<CreateExpenseDto>,
   ) {
-    return this.expensesService.update(tenantId, id, dto);
+    return this.expensesService.update(tenantId, userId, id, dto);
   }
 
   @Delete(':id')
-  remove(@CurrentUser('tenantId') tenantId: string, @Param('id') id: string) {
-    return this.expensesService.remove(tenantId, id);
+  remove(
+    @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser('sub') userId: string,
+    @Param('id') id: string,
+  ) {
+    return this.expensesService.remove(tenantId, userId, id);
   }
 }

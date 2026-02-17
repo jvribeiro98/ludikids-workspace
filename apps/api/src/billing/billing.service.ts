@@ -2,10 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { InvoiceStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { calcLateFeeAndInterest } from './billing-calc';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class BillingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
 
   async getOrCreateBillingCycle(tenantId: string, year: number, month: number) {
     let cycle = await this.prisma.billingCycle.findUnique({
@@ -19,7 +24,7 @@ export class BillingService {
     return cycle;
   }
 
-  async generateInvoices(tenantId: string, year: number, month: number) {
+  async generateInvoices(tenantId: string, year: number, month: number, userId?: string) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
     });
@@ -93,6 +98,15 @@ export class BillingService {
       created.push(contract.childId);
     }
 
+    await this.audit.log({
+      tenantId,
+      userId,
+      action: 'BILLING_GENERATE',
+      entity: 'BillingCycle',
+      entityId: cycle.id,
+      newData: { year, month, createdCount: created.length },
+    });
+
     return { cycleId: cycle.id, created: created.length, message: `${created.length} faturas geradas.` };
   }
 
@@ -124,6 +138,47 @@ export class BillingService {
     ).length;
 
     return { totalExpected, totalPaid, totalPending, overdueCount };
+  }
+
+  async updateOverdueInvoicesForTenant(tenantId: string): Promise<number> {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) return 0;
+    const now = new Date();
+    const pending = await this.prisma.invoice.findMany({
+      where: {
+        tenantId,
+        status: { in: [InvoiceStatus.PENDING] },
+        dueDate: { lt: now },
+      },
+    });
+    let updated = 0;
+    for (const inv of pending) {
+      const { lateFeeAmount, interestAmount } = calcLateFeeAndInterest(
+        inv.subtotal,
+        inv.dueDate,
+        now,
+        {
+          lateFeePercent: tenant.lateFeePercent,
+          interestPercentPerMonth: tenant.interestPercentPerMonth,
+          lateFeeMaxPercent: tenant.lateFeeMaxPercent,
+        },
+      );
+      const total = new Decimal(inv.subtotal)
+        .sub(inv.discountAmount)
+        .add(lateFeeAmount)
+        .add(interestAmount);
+      await this.prisma.invoice.update({
+        where: { id: inv.id },
+        data: {
+          status: InvoiceStatus.OVERDUE,
+          lateFeeAmount,
+          interestAmount,
+          total,
+        },
+      });
+      updated++;
+    }
+    return updated;
   }
 
   async getOverdueReport(tenantId: string, referenceMonth?: string) {

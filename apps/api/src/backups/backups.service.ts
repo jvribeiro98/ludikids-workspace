@@ -16,7 +16,7 @@ export class BackupsService {
     if (!fs.existsSync(backupDir)) {
       fs.mkdirSync(backupDir, { recursive: true });
     }
-    const fileName = `backup-${tenantId}-${new Date().toISOString().replace(/[:.]/g, '-')}.sql`;
+    const fileName = `backup-${tenantId}-${new Date().toISOString().replace(/[:.]/g, '-')}.dump`;
     const filePath = path.join(backupDir, fileName);
 
     const databaseUrl = process.env.DATABASE_URL;
@@ -45,12 +45,13 @@ export class BackupsService {
       });
       return { path: filePath, sizeBytes: stat.size, success: true };
     } catch (err: any) {
+      const errMsg = err?.message || String(err);
       await this.prisma.backupRun.create({
         data: {
           tenantId,
           path: filePath,
           success: false,
-          errorMessage: err?.message || String(err),
+          errorMessage: errMsg,
         },
       });
       return { path: filePath, success: false };

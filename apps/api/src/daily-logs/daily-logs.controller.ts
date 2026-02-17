@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { DailyLogsService } from './daily-logs.service';
 
 @ApiTags('Diário')
@@ -36,9 +37,10 @@ export class DailyLogsController {
 
   @Post('items/:id/send-to-coordination')
   sendToCoordination(
+    @CurrentUser('tenantId') tenantId: string,
     @Param('id') id: string,
     @Body() body: { childId: string },
   ) {
-    return this.dailyLogsService.sendToCoordination(id, body.childId);
+    return this.dailyLogsService.sendToCoordination(tenantId, id, body.childId);
   }
 }

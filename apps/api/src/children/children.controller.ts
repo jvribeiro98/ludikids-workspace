@@ -47,4 +47,70 @@ export class ChildrenController {
   remove(@CurrentUser('tenantId') tenantId: string, @Param('id') id: string) {
     return this.childrenService.remove(tenantId, id);
   }
+
+  @Get(':childId/addresses')
+  listAddresses(@CurrentUser('tenantId') tenantId: string, @Param('childId') childId: string) {
+    return this.childrenService.listAddresses(tenantId, childId);
+  }
+
+  @Post(':childId/addresses')
+  addAddress(
+    @CurrentUser('tenantId') tenantId: string,
+    @Param('childId') childId: string,
+    @Body() dto: { label?: string; street: string; number?: string; complement?: string; neighborhood?: string; city: string; state: string; zipCode?: string },
+  ) {
+    return this.childrenService.addAddress(tenantId, childId, dto);
+  }
+
+  @Put(':childId/addresses/:addressId')
+  updateAddress(
+    @CurrentUser('tenantId') tenantId: string,
+    @Param('childId') childId: string,
+    @Param('addressId') addressId: string,
+    @Body() dto: Partial<{ label: string; street: string; number: string; complement: string; neighborhood: string; city: string; state: string; zipCode: string }>,
+  ) {
+    return this.childrenService.updateAddress(tenantId, childId, addressId, dto);
+  }
+
+  @Delete(':childId/addresses/:addressId')
+  removeAddress(
+    @CurrentUser('tenantId') tenantId: string,
+    @Param('childId') childId: string,
+    @Param('addressId') addressId: string,
+  ) {
+    return this.childrenService.removeAddress(tenantId, childId, addressId);
+  }
+
+  @Get(':childId/authorized-pickups')
+  listAuthorizedPickups(@CurrentUser('tenantId') tenantId: string, @Param('childId') childId: string) {
+    return this.childrenService.listAuthorizedPickups(tenantId, childId);
+  }
+
+  @Post(':childId/authorized-pickups')
+  addAuthorizedPickup(
+    @CurrentUser('tenantId') tenantId: string,
+    @Param('childId') childId: string,
+    @Body() dto: { type: string; name?: string; phone?: string; document?: string },
+  ) {
+    return this.childrenService.addAuthorizedPickup(tenantId, childId, dto);
+  }
+
+  @Put(':childId/authorized-pickups/:pickupId')
+  updateAuthorizedPickup(
+    @CurrentUser('tenantId') tenantId: string,
+    @Param('childId') childId: string,
+    @Param('pickupId') pickupId: string,
+    @Body() dto: Partial<{ type: string; name: string; phone: string; document: string }>,
+  ) {
+    return this.childrenService.updateAuthorizedPickup(tenantId, childId, pickupId, dto);
+  }
+
+  @Delete(':childId/authorized-pickups/:pickupId')
+  removeAuthorizedPickup(
+    @CurrentUser('tenantId') tenantId: string,
+    @Param('childId') childId: string,
+    @Param('pickupId') pickupId: string,
+  ) {
+    return this.childrenService.removeAuthorizedPickup(tenantId, childId, pickupId);
+  }
 }

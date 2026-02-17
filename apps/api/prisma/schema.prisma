@@ -115,7 +115,9 @@ model Tenant {
   messageRules      MessageRule[]
   messageOutbox     MessageOutbox[]
   alerts            Alert[]
-  backupRuns        BackupRun[]
+  backupRuns            BackupRun[]
+  guardians             Guardian[]
+  coordinationInboxItems CoordinationInboxItem[]
 }
 
 // ========== USUÁRIOS E RBAC ==========
@@ -208,6 +210,7 @@ model Child {
 
 model Guardian {
   id        String   @id @default(cuid())
+  tenantId  String
   name      String
   email     String?
   phone     String?
@@ -216,7 +219,9 @@ model Guardian {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   childGuardians ChildGuardian[]
+  @@index([tenantId])
 }
 
 model ChildGuardian {
@@ -527,6 +532,7 @@ model Incident {
 
 model CoordinationInboxItem {
   id                String      @id @default(cuid())
+  tenantId          String
   dailyLogItemId    String?
   childId           String?
   status            InboxStatus @default(PENDING)
@@ -537,9 +543,11 @@ model CoordinationInboxItem {
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   dailyLogItem DailyLogItem? @relation(fields: [dailyLogItemId], references: [id], onDelete: SetNull)
   child        Child?        @relation(fields: [childId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId])
   @@index([status])
   @@index([dailyLogItemId])
   @@index([childId])

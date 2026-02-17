@@ -14,7 +14,13 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
-  app.enableCors({ origin: process.env.WEB_ORIGIN || 'http://localhost:3000', credentials: true });
+  const corsOrigin = process.env.WEB_ORIGIN
+    ? process.env.WEB_ORIGIN.split(',').map((o) => o.trim())
+    : true;
+  app.enableCors({ origin: corsOrigin, credentials: true });
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('CORS origens:', typeof corsOrigin === 'boolean' ? 'qualquer' : corsOrigin);
+  }
 
   if (process.env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()
@@ -28,7 +34,7 @@ async function bootstrap() {
   }
 
   const port = process.env.PORT || 4000;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   console.log(`API rodando em http://localhost:${port}`);
   if (process.env.NODE_ENV !== 'production') {
     console.log(`Swagger em http://localhost:${port}/docs`);

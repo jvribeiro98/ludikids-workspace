@@ -15,11 +15,13 @@ export class PaymentsController {
   @Post()
   create(
     @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser('sub') userId: string,
     @Body() dto: CreatePaymentDto,
   ) {
     const paidAt = new Date();
     return this.paymentsService.register(
       tenantId,
+      userId,
       dto.invoiceId,
       dto.amount,
       dto.method,

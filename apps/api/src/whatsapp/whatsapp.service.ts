@@ -1,18 +1,31 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MessageRuleTrigger, OutboxStatus } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class WhatsAppService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
 
   // Templates
-  async createTemplate(tenantId: string, code: string, name: string, body: string) {
-    return this.prisma.messageTemplate.upsert({
+  async createTemplate(tenantId: string, userId: string | undefined, code: string, name: string, body: string) {
+    const template = await this.prisma.messageTemplate.upsert({
       where: { tenantId_code: { tenantId, code } },
       create: { tenantId, code, name, body },
       update: { name, body },
     });
+    await this.audit.log({
+      tenantId,
+      userId,
+      action: 'UPSERT',
+      entity: 'MessageTemplate',
+      entityId: template.id,
+      newData: { code, name, body },
+    });
+    return template;
   }
 
   async listTemplates(tenantId: string) {
@@ -30,12 +43,21 @@ export class WhatsAppService {
     });
   }
 
-  async upsertRule(tenantId: string, trigger: MessageRuleTrigger, templateId?: string, active = true) {
-    return this.prisma.messageRule.upsert({
+  async upsertRule(tenantId: string, userId: string | undefined, trigger: MessageRuleTrigger, templateId?: string, active = true) {
+    const rule = await this.prisma.messageRule.upsert({
       where: { tenantId_trigger: { tenantId, trigger } },
       create: { tenantId, trigger, templateId, active },
       update: { templateId, active },
     });
+    await this.audit.log({
+      tenantId,
+      userId,
+      action: 'UPSERT',
+      entity: 'MessageRule',
+      entityId: rule.id,
+      newData: { trigger, templateId, active },
+    });
+    return rule;
   }
 
   // Job: buscar faturas elegíveis e criar itens na outbox (idempotente)

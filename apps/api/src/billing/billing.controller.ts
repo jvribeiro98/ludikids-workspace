@@ -14,9 +14,10 @@ export class BillingController {
   @Post('generate')
   generateInvoices(
     @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser('sub') userId: string,
     @Body() body: { year: number; month: number },
   ) {
-    return this.billingService.generateInvoices(tenantId, body.year, body.month);
+    return this.billingService.generateInvoices(tenantId, body.year, body.month, userId);
   }
 
   @Get('cycles')

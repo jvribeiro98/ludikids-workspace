@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { BackupsService } from '../backups/backups.service';
+import { BillingService } from '../billing/billing.service';
 
 @Injectable()
 export class JobsService {
@@ -12,7 +13,20 @@ export class JobsService {
     private whatsApp: WhatsAppService,
     private alerts: AlertsService,
     private backups: BackupsService,
+    private billing: BillingService,
   ) {}
+
+  @Cron('0 1 * * *') // 01:00 diário - atualiza faturas vencidas (status OVERDUE + multa/juros)
+  async dailyOverdueInvoices() {
+    const tenants = await this.prisma.tenant.findMany({ select: { id: true } });
+    for (const t of tenants) {
+      try {
+        await this.billing.updateOverdueInvoicesForTenant(t.id);
+      } catch (e) {
+        console.error('Overdue invoices', t.id, e);
+      }
+    }
+  }
 
   @Cron('0 6 * * *') // 06:00 diário
   async dailyBillingAndWhatsApp() {

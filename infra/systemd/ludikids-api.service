@@ -1,0 +1,18 @@
+[Unit]
+Description=LudiKids API (NestJS)
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=__APP_ROOT__/apps/api
+EnvironmentFile=__APP_ROOT__/.env
+Environment=NODE_ENV=production
+Environment=PORT=4000
+ExecStart=/usr/bin/node dist/main.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
