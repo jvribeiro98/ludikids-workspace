@@ -14,11 +14,31 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
-  const corsOrigin = process.env.WEB_ORIGIN
-    ? process.env.WEB_ORIGIN.split(',').map((o) => o.trim())
-    : true;
-  app.enableCors({ origin: corsOrigin, credentials: true });
-  if (process.env.NODE_ENV !== 'production') {
+  const isProduction = process.env.NODE_ENV === 'production';
+  let corsOrigin: string | string[] | true = true;
+  if (process.env.WEB_ORIGIN) {
+    corsOrigin = process.env.WEB_ORIGIN.split(',')
+      .map((o) => o.trim().replace(/\/+$/, ''))
+      .filter(Boolean);
+    if (isProduction && corsOrigin.length === 0) corsOrigin = true;
+  }
+  if (isProduction && (corsOrigin === true || (Array.isArray(corsOrigin) && corsOrigin.length === 0))) {
+    corsOrigin = [];
+  }
+  const originCallback =
+    Array.isArray(corsOrigin) && corsOrigin.length > 0
+      ? (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
+          if (!origin) return cb(null, false);
+          const normalized = origin.replace(/\/+$/, '');
+          const allow = corsOrigin.includes(normalized);
+          cb(null, allow);
+        }
+      : undefined;
+  app.enableCors({
+    origin: originCallback ?? corsOrigin,
+    credentials: true,
+  });
+  if (!isProduction) {
     console.log('CORS origens:', typeof corsOrigin === 'boolean' ? 'qualquer' : corsOrigin);
   }
 

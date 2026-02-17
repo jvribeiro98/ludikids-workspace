@@ -15,5 +15,10 @@ pnpm exec prisma generate
 echo "Rodando prisma migrate deploy..."
 pnpm exec prisma migrate deploy
 
+if [ "${RUN_SEED_ON_START}" = "true" ]; then
+  echo "Rodando seed (idempotente)..."
+  (cd /app && pnpm db:seed) || true
+fi
+
 echo "Iniciando API..."
 exec node dist/main.js

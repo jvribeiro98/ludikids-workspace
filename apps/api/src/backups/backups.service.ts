@@ -7,6 +7,8 @@ import * as path from 'path';
 
 const execAsync = promisify(exec);
 
+const BACKUP_RETENTION_COUNT = parseInt(process.env.BACKUP_RETENTION_COUNT || '30', 10);
+
 @Injectable()
 export class BackupsService {
   constructor(private prisma: PrismaService) {}
@@ -43,6 +45,7 @@ export class BackupsService {
       await this.prisma.backupRun.create({
         data: { tenantId, path: filePath, sizeBytes: stat.size, success: true },
       });
+      await this.applyRetention(backupDir, tenantId);
       return { path: filePath, sizeBytes: stat.size, success: true };
     } catch (err: any) {
       const errMsg = err?.message || String(err);
@@ -64,5 +67,30 @@ export class BackupsService {
       orderBy: { createdAt: 'desc' },
       take: 30,
     });
+  }
+
+  private async applyRetention(backupDir: string, tenantId: string): Promise<void> {
+    try {
+      const prefix = `backup-${tenantId}-`;
+      const files = fs.readdirSync(backupDir)
+        .filter((f) => f.startsWith(prefix) && f.endsWith('.dump'))
+        .map((f) => ({
+          name: f,
+          path: path.join(backupDir, f),
+          mtime: fs.statSync(path.join(backupDir, f)).mtime.getTime(),
+        }))
+        .sort((a, b) => b.mtime - a.mtime);
+      if (files.length <= BACKUP_RETENTION_COUNT) return;
+      const toRemove = files.slice(BACKUP_RETENTION_COUNT);
+      for (const f of toRemove) {
+        try {
+          fs.unlinkSync(f.path);
+        } catch (e) {
+          console.warn('Backup retention: falha ao remover', f.path, e);
+        }
+      }
+    } catch (e) {
+      console.warn('Backup retention: erro', e);
+    }
   }
 }

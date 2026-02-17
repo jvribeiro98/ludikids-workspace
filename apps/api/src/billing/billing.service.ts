@@ -176,6 +176,20 @@ export class BillingService {
           total,
         },
       });
+      await this.audit.log({
+        tenantId,
+        userId: undefined,
+        action: 'SYSTEM_UPDATE',
+        entity: 'Invoice',
+        entityId: inv.id,
+        newData: {
+          reason: 'overdue_recalc',
+          status: 'OVERDUE',
+          lateFeeAmount: Number(lateFeeAmount),
+          interestAmount: Number(interestAmount),
+          total: Number(total),
+        },
+      });
       updated++;
     }
     return updated;
@@ -183,6 +197,8 @@ export class BillingService {
 
   async getOverdueReport(tenantId: string, referenceMonth?: string) {
     const ref = referenceMonth ? new Date(referenceMonth) : new Date();
+    const refYear = ref.getFullYear();
+    const refMonth = ref.getMonth();
     const invoices = await this.prisma.invoice.findMany({
       where: {
         tenantId,
@@ -193,10 +209,41 @@ export class BillingService {
       orderBy: { dueDate: 'asc' },
     });
     const byMonth = new Map<string, number>();
-    for (const inv of invoices) {
-      const key = `${inv.dueDate.getFullYear()}-${String(inv.dueDate.getMonth() + 1).padStart(2, '0')}`;
+    const invoicesWithMonths = invoices.map((inv) => {
+      const dueYear = new Date(inv.dueDate).getFullYear();
+      const dueMonth = new Date(inv.dueDate).getMonth();
+      const monthsOverdue = (refYear - dueYear) * 12 + (refMonth - dueMonth);
+      const key = `${dueYear}-${String(dueMonth + 1).padStart(2, '0')}`;
       byMonth.set(key, (byMonth.get(key) || 0) + 1);
+      return {
+        ...inv,
+        monthsOverdue: Math.max(0, monthsOverdue),
+      };
+    });
+    const byChild = new Map<
+      string,
+      { childId: string; childName: string; monthsOverdue: number; totalOverdue: number }
+    >();
+    for (const inv of invoicesWithMonths) {
+      const cur = byChild.get(inv.childId);
+      const totalRemaining = Number(inv.total) - Number(inv.paidAmount);
+      const monthsOverdue = (inv as { monthsOverdue?: number }).monthsOverdue ?? 0;
+      if (!cur) {
+        byChild.set(inv.childId, {
+          childId: inv.childId,
+          childName: inv.child?.name ?? '',
+          monthsOverdue,
+          totalOverdue: Math.max(0, totalRemaining),
+        });
+      } else {
+        cur.monthsOverdue = Math.max(cur.monthsOverdue, monthsOverdue);
+        cur.totalOverdue += Math.max(0, totalRemaining);
+      }
     }
-    return { invoices, byMonth: Object.fromEntries(byMonth) };
+    return {
+      invoices: invoicesWithMonths,
+      byMonth: Object.fromEntries(byMonth),
+      byChild: Array.from(byChild.values()),
+    };
   }
 }

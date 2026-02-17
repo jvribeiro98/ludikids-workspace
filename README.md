@@ -79,14 +79,63 @@ Para subir a aplicação inteira com Docker (Postgres, Redis, API e Web):
    ```bash
    docker compose -f infra/docker-compose.full.yml up -d --build
    ```
-3. **Rodar o seed (uma vez)** para criar o tenant e o usuário admin:
+3. **Seed:** com `RUN_SEED_ON_START=true` (padrão), o entrypoint da API roda o seed idempotente na primeira subida. Para rodar manualmente:
    ```bash
    docker compose -f infra/docker-compose.full.yml exec api sh -c "cd /app && pnpm db:seed"
    ```
 4. **Logs:** `docker compose -f infra/docker-compose.full.yml logs -f api` ou `logs -f web`.
 5. **Parar:** `docker compose -f infra/docker-compose.full.yml down`. Volumes (postgres_data, redis_data, backups_data) são mantidos.
 
-Backups (pg_dump em formato custom) ficam no volume `backups_data`, montado em `/backups` no container da API.
+Backups (pg_dump formato custom `.dump`) ficam no volume `backups_data` (montado em `/backups`). Retenção: últimos 30 arquivos por tenant (`BACKUP_RETENTION_COUNT=30`).
+
+---
+
+### Produção com domínio (HTTPS + Caddy)
+
+Para rodar com domínio real (ex.: `ludikids.com.br`) e HTTPS automático (Let's Encrypt):
+
+1. **DNS:** aponte o domínio para o IP da VPS:
+   - Registro **A** para `ludikids.com.br` → IP da VPS
+   - Registro **A** para `api.ludikids.com.br` → mesmo IP da VPS
+
+2. **`.env` na raiz** (exemplo para produção):
+
+   ```env
+   APP_DOMAIN=ludikids.com.br
+   CADDY_EMAIL=admin@ludikids.com.br
+   WEB_ORIGIN=https://ludikids.com.br
+   NEXT_PUBLIC_API_URL=https://api.ludikids.com.br
+   JWT_SECRET=um-secret-jwt-muito-forte-e-aleatorio
+   JWT_REFRESH_SECRET=outro-secret-refresh-muito-forte
+   POSTGRES_PASSWORD=senha-segura-postgres
+   RUN_SEED_ON_START=true
+   ADMIN_EMAIL=admin@ludikids.com.br
+   ADMIN_PASSWORD=AltereSenhaAdmin123!
+   ```
+
+3. **Build e subida** (na raiz do repo):
+
+   ```bash
+   docker compose -f infra/docker-compose.full.yml up -d --build
+   ```
+
+   O serviço **Caddy** escuta nas portas 80 e 443 e roteia:
+   - `https://ludikids.com.br` → Web (3000)
+   - `https://api.ludikids.com.br` → API (4000)
+
+4. **Logs e healthcheck:**
+
+   ```bash
+   docker compose -f infra/docker-compose.full.yml logs -f api
+   curl -s -o /dev/null -w "%{http_code}" https://api.ludikids.com.br/docs
+   curl -s -o /dev/null -w "%{http_code}" https://ludikids.com.br
+   ```
+
+5. **Checklist pós-deploy:**
+   - Trocar a senha do admin no primeiro login.
+   - Confirmar que backups estão rodando (job 02:00; volume `backups_data`).
+   - Testar login no navegador (CORS deve aceitar apenas `WEB_ORIGIN`).
+   - Verificar certificado HTTPS no navegador.
 
 ### Firewall (acessar por IP)
 
@@ -110,7 +159,8 @@ ludikids_software/
 ├── packages/shared/
 ├── infra/
 │   ├── docker-compose.yml      # Postgres e Redis (dev)
-│   ├── docker-compose.full.yml # Postgres + Redis + API + Web (VPS)
+│   ├── docker-compose.full.yml # Postgres + Redis + API + Web + Caddy (VPS)
+│   ├── Caddyfile               # Reverse proxy HTTPS (produção)
 │   └── systemd/                # ludikids-api.service, ludikids-web.service
 ├── scripts/
 │   ├── deploy-vps.sh        # build + instala serviços systemd
@@ -133,6 +183,26 @@ ludikids_software/
 | `NEXT_PUBLIC_API_URL` | URL da API no navegador (na VPS use `http://IP_DA_VPS:4000`). |
 | `WEB_ORIGIN` | Origens CORS (na VPS use `http://IP_DA_VPS:3000`). Várias origens: separar por vírgula. |
 | `BACKUP_DIR` | Pasta de backups (padrão `/backups`; no Docker use o volume `backups_data`). |
+| `BACKUP_RETENTION_COUNT` | Quantidade de backups a manter por tenant (padrão 30). |
+| `APP_DOMAIN` | Domínio principal (produção com Caddy; ex.: ludikids.com.br). |
+| `CADDY_EMAIL` | E-mail para Let's Encrypt (produção). |
+
+---
+
+## Restaurar um backup (pg_restore)
+
+Os backups são gerados em formato custom (`.dump`) com `pg_dump -F c`. Para restaurar:
+
+```bash
+# Com Docker (conectar no Postgres do compose)
+docker compose -f infra/docker-compose.full.yml exec postgres pg_restore -U ludikids -d ludikids -c --if-exists /caminho/para/backup-tenantId-data.dump
+
+# Ou com arquivo copiado para o host
+pg_restore -h localhost -p 5432 -U ludikids -d ludikids -c --if-exists backup-xxx.dump
+```
+
+- `-c --if-exists`: remove objetos antes de recriar (cuidado em produção).
+- Para criar em um banco novo: crie o banco vazio e use `pg_restore -d novo_banco backup.dump`.
 
 ---
 

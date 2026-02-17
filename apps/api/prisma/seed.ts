@@ -31,7 +31,7 @@ async function main() {
 
   for (const name of ROLES) {
     await prisma.role.upsert({
-      where: { name: name as any },
+      where: { tenantId_name: { tenantId: tenant.id, name: name as any } },
       create: { name: name as any, tenantId: tenant.id },
       update: {},
     });
@@ -39,7 +39,7 @@ async function main() {
   console.log('Roles criadas.');
 
   const moderadorRole = await prisma.role.findUnique({
-    where: { name: 'MODERADOR' as any },
+    where: { tenantId_name: { tenantId: tenant.id, name: 'MODERADOR' as any } },
   });
   if (!moderadorRole) throw new Error('Role MODERADOR não encontrada.');
 

@@ -29,6 +29,7 @@ enum InvoiceStatus {
 
 enum PaymentMethod {
   PIX
+  BOLETO
   CASH
   CARD
   TRANSFER
@@ -118,6 +119,9 @@ model Tenant {
   backupRuns            BackupRun[]
   guardians             Guardian[]
   coordinationInboxItems CoordinationInboxItem[]
+  childAddresses       ChildAddress[]
+  authorizedPickups   AuthorizedPickup[]
+  childDocuments      ChildDocument[]
 }
 
 // ========== USUÁRIOS E RBAC ==========
@@ -138,12 +142,15 @@ model User {
 
 model Role {
   id        String   @id @default(cuid())
-  name      RoleName @unique
-  tenantId  String?
+  name      RoleName
+  tenantId  String
   createdAt DateTime @default(now())
 
-  tenant    Tenant?    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userRoles UserRole[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
 }
 
 model UserRole {
@@ -242,6 +249,7 @@ model ChildGuardian {
 
 model ChildAddress {
   id        String   @id @default(cuid())
+  tenantId  String
   childId   String
   label     String?  // Casa mãe, Casa pai, Avós
   street    String
@@ -253,13 +261,16 @@ model ChildAddress {
   zipCode   String?
   createdAt DateTime @default(now())
 
-  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  child  Child  @relation(fields: [childId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId])
   @@index([childId])
 }
 
 model AuthorizedPickup {
   id       String             @id @default(cuid())
+  tenantId String
   childId  String
   type     AuthorizedPickupType
   name     String?
@@ -267,13 +278,16 @@ model AuthorizedPickup {
   document String?
   createdAt DateTime @default(now())
 
-  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  child  Child  @relation(fields: [childId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId])
   @@index([childId])
 }
 
 model ChildDocument {
   id         String       @id @default(cuid())
+  tenantId   String
   childId    String
   type       DocumentType
   fileName   String
@@ -282,8 +296,10 @@ model ChildDocument {
   sizeBytes  Int?
   createdAt  DateTime     @default(now())
 
-  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  child  Child  @relation(fields: [childId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId])
   @@index([childId])
 }
 

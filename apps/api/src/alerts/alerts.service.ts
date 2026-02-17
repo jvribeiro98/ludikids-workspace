@@ -40,34 +40,62 @@ export class AlertsService {
       }
     }
 
-    // Gastos: variação por categoria (média 3 meses)
-    const threeMonthsAgo = new Date(year, month - 4, 1);
+    // Gastos: variação por categoria — média real dos últimos 3 meses (cada mês separado)
+    const spikeThresholdPct = 20;
     const categories = await this.prisma.expenseCategory.findMany({
       where: { tenantId },
     });
     for (const cat of categories) {
-      const current = await this.prisma.expense.aggregate({
-        where: { categoryId: cat.id, date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) } },
-        _sum: { amount: true },
-      });
-      const previous = await this.prisma.expense.aggregate({
-        where: { categoryId: cat.id, date: { gte: threeMonthsAgo } },
-        _sum: { amount: true },
-        _count: true,
-      });
-      const currentSum = Number(current._sum.amount ?? 0);
-      const avgPrevious = previous._count > 0 ? Number(previous._sum.amount ?? 0) / 3 : 0;
-      if (avgPrevious > 0 && currentSum > avgPrevious * 1.2) {
+      const [currentAgg, agg1, agg2, agg3] = await Promise.all([
+        this.prisma.expense.aggregate({
+          where: { categoryId: cat.id, date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) } },
+          _sum: { amount: true },
+        }),
+        this.prisma.expense.aggregate({
+          where: { categoryId: cat.id, date: { gte: new Date(year, month - 2, 1), lt: new Date(year, month - 1, 1) } },
+          _sum: { amount: true },
+        }),
+        this.prisma.expense.aggregate({
+          where: { categoryId: cat.id, date: { gte: new Date(year, month - 3, 1), lt: new Date(year, month - 2, 1) } },
+          _sum: { amount: true },
+        }),
+        this.prisma.expense.aggregate({
+          where: { categoryId: cat.id, date: { gte: new Date(year, month - 4, 1), lt: new Date(year, month - 3, 1) } },
+          _sum: { amount: true },
+        }),
+      ]);
+      const currentSum = Number(currentAgg._sum.amount ?? 0);
+      const m1 = Number(agg1._sum.amount ?? 0);
+      const m2 = Number(agg2._sum.amount ?? 0);
+      const m3 = Number(agg3._sum.amount ?? 0);
+      const monthsWithValue = [m1, m2, m3].filter((v) => v > 0).length;
+      const avgPrevious = (m1 + m2 + m3) / 3;
+
+      if (
+        monthsWithValue >= 2 &&
+        avgPrevious > 0 &&
+        currentSum > avgPrevious * (1 + spikeThresholdPct / 100)
+      ) {
         const pct = Math.round(((currentSum - avgPrevious) / avgPrevious) * 100);
-        await this.prisma.alert.create({
-          data: {
+        const existing = await this.prisma.alert.findFirst({
+          where: {
             tenantId,
             type: 'EXPENSE_SPIKE',
-            title: `Gasto da categoria ${cat.name} subiu`,
-            message: `Gasto de ${cat.name} subiu ${pct}% em relação à média dos últimos 3 meses.`,
-            metadata: { categoryId: cat.id, categoryName: cat.name, percent: pct },
+            createdAt: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) },
+            metadata: { path: ['categoryId'], equals: cat.id },
           },
         });
+        if (!existing) {
+          await this.prisma.alert.create({
+            data: {
+              tenantId,
+              type: 'EXPENSE_SPIKE',
+              title: `Gasto da categoria ${cat.name} subiu`,
+              message: `Gasto de ${cat.name} subiu ${pct}% em relação à média dos últimos 3 meses.`,
+              metadata: { categoryId: cat.id, categoryName: cat.name, percent: pct },
+            },
+          });
+        }
       }
     }
 

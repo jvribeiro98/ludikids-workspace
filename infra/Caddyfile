@@ -1,0 +1,14 @@
+# LudiKids - Reverse proxy com HTTPS (Let's Encrypt)
+# Variáveis no container: APP_DOMAIN (ex: ludikids.com.br), CADDY_EMAIL (opcional)
+
+{
+	email {$CADDY_EMAIL}
+}
+
+{$APP_DOMAIN} {
+	reverse_proxy web:3000
+}
+
+api.{$APP_DOMAIN} {
+	reverse_proxy api:4000
+}

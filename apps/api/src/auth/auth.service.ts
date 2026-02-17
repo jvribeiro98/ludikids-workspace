@@ -32,9 +32,11 @@ export class AuthService {
     const accessToken = this.jwtService.sign(payload, {
       expiresIn: this.config.get('JWT_EXPIRES_IN', '15m'),
     });
+    const refreshSecret = this.config.get<string>('JWT_REFRESH_SECRET');
+    if (!refreshSecret) throw new Error('JWT_REFRESH_SECRET não configurado');
     const refreshToken = this.jwtService.sign(
       { sub: user.id, type: 'refresh' },
-      { expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN', '7d') },
+      { secret: refreshSecret, expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN', '7d') },
     );
 
     await this.usersService.setRefreshToken(user.id, refreshToken);
@@ -55,10 +57,12 @@ export class AuthService {
 
   async refresh(refreshToken: string) {
     try {
+      const refreshSecret = this.config.get<string>('JWT_REFRESH_SECRET');
+      if (!refreshSecret) throw new UnauthorizedException('Refresh não configurado');
       const payload = this.jwtService.verify(refreshToken, {
-        secret: this.config.get('JWT_SECRET'),
-      });
-      if (payload.type !== 'refresh') throw new UnauthorizedException();
+        secret: refreshSecret,
+      }) as { sub?: string; type?: string };
+      if (payload.type !== 'refresh' || !payload.sub) throw new UnauthorizedException();
       const user = await this.usersService.findById(payload.sub);
       if (!user || user.refreshToken !== refreshToken) {
         throw new UnauthorizedException('Refresh token inválido');
