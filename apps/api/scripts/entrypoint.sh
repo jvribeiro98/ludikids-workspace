@@ -37,4 +37,4 @@ if [ "${RUN_SEED_ON_START}" = "true" ]; then
 fi
 
 echo "Iniciando API..."
-exec node dist/main.js
+exec node dist/src/main.js
