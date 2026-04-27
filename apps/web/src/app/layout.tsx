@@ -19,10 +19,12 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const isGithubPages = process.env.GITHUB_PAGES === 'true';
+
   return (
     <html lang="pt-BR">
       <body>
-        <Script src="/runtime-config.js" strategy="beforeInteractive" />
+        {!isGithubPages && <Script src="/runtime-config.js" strategy="beforeInteractive" />}
         <QueryProvider>
           <AuthProvider>{children}</AuthProvider>
         </QueryProvider>

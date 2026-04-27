@@ -15,7 +15,11 @@ export async function api<T>(
     ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };
-  const res = await fetch(`${getApiUrl()}${path}`, { ...options, headers });
+  const apiUrl = getApiUrl();
+  if (apiUrl === '__MISSING_API_URL__') {
+    throw new Error('API não configurada para o GitHub Pages. Defina NEXT_PUBLIC_API_URL nas variables do repositório.');
+  }
+  const res = await fetch(`${apiUrl}${path}`, { ...options, headers });
   if (res.status === 401) {
     const refreshed = await refreshToken();
     if (refreshed) {
