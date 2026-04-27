@@ -34,9 +34,6 @@ export class JobsService {
   @Cron('0 6 * * *') // 06:00 diário
   async dailyBillingAndWhatsApp() {
     const tenants = await this.prisma.tenant.findMany({ select: { id: true } });
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
     for (const t of tenants) {
       try {
         await this.whatsApp.processRulesForTenant(t.id);
