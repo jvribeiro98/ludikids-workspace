@@ -4,10 +4,61 @@ import * as argon2 from 'argon2';
 const prisma = new PrismaClient();
 
 const ROLES = ['MODERADOR', 'ADMINISTRADOR', 'COORDENACAO', 'PROFESSOR'] as const;
+type RoleName = (typeof ROLES)[number];
+
+async function ensureUserWithRole(params: {
+  tenantId: string;
+  email: string;
+  password: string;
+  name: string;
+  role: RoleName;
+}) {
+  const { tenantId, email, password, name, role } = params;
+
+  const roleEntity = await prisma.role.findUnique({
+    where: { tenantId_name: { tenantId, name: role as any } },
+  });
+  if (!roleEntity) throw new Error(`Role ${role} não encontrada.`);
+
+  let user = await prisma.user.findUnique({ where: { email } });
+  if (!user) {
+    const passwordHash = await argon2.hash(password);
+    user = await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        name,
+        tenantId,
+      },
+    });
+    console.log(`Usuário criado: ${email}`);
+  } else {
+    console.log(`Usuário já existe: ${email}`);
+  }
+
+  await prisma.userRole.upsert({
+    where: {
+      userId_roleId: {
+        userId: user.id,
+        roleId: roleEntity.id,
+      },
+    },
+    create: {
+      userId: user.id,
+      roleId: roleEntity.id,
+    },
+    update: {},
+  });
+
+  return user;
+}
 
 async function main() {
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@ludikids.com.br';
   const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@123';
+  const testUserEmail = process.env.TEST_USER_EMAIL || 'teste@ludikids.com.br';
+  const testUserPassword = process.env.TEST_USER_PASSWORD || 'Teste@123';
+  const createTestUser = process.env.CREATE_TEST_USER !== 'false';
 
   let tenant = await prisma.tenant.findFirst({ where: { slug: 'ludikids' } });
   if (!tenant) {
@@ -38,26 +89,22 @@ async function main() {
   }
   console.log('Roles criadas.');
 
-  const moderadorRole = await prisma.role.findUnique({
-    where: { tenantId_name: { tenantId: tenant.id, name: 'MODERADOR' as any } },
+  await ensureUserWithRole({
+    tenantId: tenant.id,
+    email: adminEmail,
+    password: adminPassword,
+    name: 'Administrador',
+    role: 'MODERADOR',
   });
-  if (!moderadorRole) throw new Error('Role MODERADOR não encontrada.');
 
-  let user = await prisma.user.findUnique({ where: { email: adminEmail } });
-  if (!user) {
-    const passwordHash = await argon2.hash(adminPassword);
-    user = await prisma.user.create({
-      data: {
-        email: adminEmail,
-        passwordHash,
-        name: 'Administrador',
-        tenantId: tenant.id,
-      },
+  if (createTestUser) {
+    await ensureUserWithRole({
+      tenantId: tenant.id,
+      email: testUserEmail,
+      password: testUserPassword,
+      name: 'Usuário de Teste',
+      role: 'COORDENACAO',
     });
-    await prisma.userRole.create({
-      data: { userId: user.id, roleId: moderadorRole.id },
-    });
-    console.log(`Usuário moderador criado: ${adminEmail}`);
   }
 
   const categories = ['Alimentação', 'Material', 'Limpeza', 'Salários', 'Outros'];
