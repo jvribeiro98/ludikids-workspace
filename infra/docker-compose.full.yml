@@ -38,7 +38,7 @@ services:
 
   api:
     build:
-      context: .
+      context: ..
       dockerfile: apps/api/Dockerfile
     container_name: ludikids-api
     networks: [internal]
@@ -71,7 +71,7 @@ services:
 
   web:
     build:
-      context: .
+      context: ..
       dockerfile: apps/web/Dockerfile
     container_name: ludikids-web
     networks: [internal]
