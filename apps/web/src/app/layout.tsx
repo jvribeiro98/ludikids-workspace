@@ -3,15 +3,16 @@ import Script from 'next/script';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { QueryProvider } from '@/components/QueryProvider';
+import { BrandingProvider } from '@/components/BrandingProvider';
 
 export const metadata: Metadata = {
-  title: 'LudiKids - Gestão de Creche',
-  description: 'Sistema de gestão para creche LudiKids',
+  title: 'LudiKids - Gestão Escolar',
+  description: 'Sistema de gestão escolar com módulo financeiro e personalização visual por cliente.',
   manifest: '/manifest.json',
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0ea5e9',
+  themeColor: '#4F46E5',
 };
 
 export default function RootLayout({
@@ -26,7 +27,9 @@ export default function RootLayout({
       <body>
         {!isGithubPages && <Script src="/runtime-config.js" strategy="beforeInteractive" />}
         <QueryProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <BrandingProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </BrandingProvider>
         </QueryProvider>
       </body>
     </html>

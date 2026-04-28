@@ -1,20 +1,25 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranding } from '@/components/BrandingProvider';
 
 const nav = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/dashboard/criancas', label: 'Crianças' },
-  { href: '/dashboard/contratos', label: 'Contratos' },
-  { href: '/dashboard/financeiro', label: 'Financeiro' },
-  { href: '/dashboard/diario', label: 'Painel Diário' },
-  { href: '/dashboard/coordenacao', label: 'Inbox Coordenação' },
-  { href: '/dashboard/rh', label: 'RH' },
-  { href: '/dashboard/whatsapp', label: 'WhatsApp' },
+  { href: '/dashboard', label: 'Dashboard', icon: '🏠' },
+  { href: '/dashboard/criancas', label: 'Alunos', icon: '🧒' },
+  { href: '/dashboard/contratos', label: 'Contratos', icon: '📄' },
+  { href: '/dashboard/financeiro', label: 'Financeiro', icon: '💰' },
+  { href: '/dashboard/diario', label: 'Diário', icon: '📘' },
+  { href: '/dashboard/coordenacao', label: 'Coordenação', icon: '🎯' },
+  { href: '/dashboard/rh', label: 'RH', icon: '👥' },
+  { href: '/dashboard/whatsapp', label: 'Comunicação', icon: '💬' },
+  { href: '/dashboard/personalizacao', label: 'Personalização', icon: '🎨' },
 ];
+
+const mobileTabs = nav.slice(0, 5);
 
 export default function DashboardLayout({
   children,
@@ -22,50 +27,94 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { user, loading, logout } = useAuth();
+  const { branding } = useBranding();
   const router = useRouter();
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login');
   }, [user, loading, router]);
 
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
   if (loading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-slate-400">Carregando...</p>
+      <div className="min-h-screen grid place-items-center">
+        <p style={{ color: 'var(--brand-muted)' }}>Carregando...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex">
-      <aside className="w-56 bg-slate-900 border-r border-slate-700 flex flex-col">
-        <div className="p-4 border-b border-slate-700">
-          <h2 className="font-bold text-primary">LudiKids</h2>
-          <p className="text-xs text-slate-400 truncate">{user.email}</p>
+    <div className="min-h-screen p-3 lg:p-5" style={{ background: 'linear-gradient(160deg, var(--brand-primary), #1e1b4b)' }}>
+      <div className="min-h-[calc(100vh-1.5rem)] rounded-[28px] p-3 lg:p-5" style={{ background: 'var(--brand-bg)' }}>
+        <div className="lg:hidden mb-3 flex items-center justify-between lk-card">
+          <div className="flex items-center gap-2 min-w-0">
+            <Image src={branding.logoUrl} alt={branding.brandName} width={36} height={36} className="h-9 w-9 rounded-xl object-cover border" style={{ borderColor: 'var(--brand-border)' }} unoptimized />
+            <p className="font-semibold leading-none text-base truncate">{branding.brandName}</p>
+          </div>
+          <button className="btn btn-primary" onClick={() => setOpen((v) => !v)}>Menu</button>
         </div>
-        <nav className="flex-1 p-2 overflow-y-auto">
-          {nav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`block px-3 py-2 rounded-lg text-sm ${
-                pathname === item.href
-                  ? 'bg-primary/20 text-primary'
-                  : 'text-slate-300 hover:bg-slate-800'
-              }`}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="p-2 border-t border-slate-700">
-          <button onClick={() => logout().then(() => router.push('/login'))} className="btn btn-secondary w-full text-sm">
-            Sair
-          </button>
+
+        <div className="flex gap-4">
+          <aside className={`${open ? 'fixed inset-0 z-30 flex' : 'hidden'} lg:relative lg:flex lg:w-72 shrink-0`} aria-label="Menu lateral">
+            {open && <button className="absolute inset-0 bg-black/30" onClick={() => setOpen(false)} aria-label="Fechar menu" />}
+            <div className="relative z-10 w-72 lg:w-full lk-card p-4 flex flex-col">
+              <div className="flex items-center gap-3 pb-4 border-b" style={{ borderColor: 'var(--brand-border)' }}>
+                <Image src={branding.logoUrl} alt={branding.brandName} width={44} height={44} className="h-11 w-11 rounded-xl object-cover border" style={{ borderColor: 'var(--brand-border)' }} unoptimized />
+                <div className="min-w-0">
+                  <p className="font-semibold truncate text-[17px]">{branding.brandName}</p>
+                  <p className="text-xs truncate" style={{ color: 'var(--brand-muted)' }}>ERP escolar multi-tenant</p>
+                </div>
+              </div>
+
+              <nav className="flex-1 mt-4 space-y-1 overflow-y-auto">
+                {nav.map((item) => {
+                  const active = pathname === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="block px-3 py-2 rounded-xl text-sm font-medium"
+                      style={{
+                        background: active ? 'color-mix(in srgb, var(--brand-primary) 16%, white)' : 'transparent',
+                        color: active ? 'var(--brand-primary)' : 'var(--brand-text)',
+                      }}
+                    >
+                      <span className="mr-2">{item.icon}</span>{item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+
+              <div className="pt-3 border-t" style={{ borderColor: 'var(--brand-border)' }}>
+                <p className="text-xs mb-2 truncate" style={{ color: 'var(--brand-muted)' }}>{user.email}</p>
+                <button onClick={() => logout().then(() => router.push('/login'))} className="btn btn-secondary w-full text-sm">Sair</button>
+              </div>
+            </div>
+          </aside>
+
+          <main className="flex-1 min-w-0 space-y-3">
+            {children}
+            <div className="lg:hidden">
+              <nav className="lk-mobile-tabbar" aria-label="Ações rápidas mobile">
+                {mobileTabs.map((item) => {
+                  const active = pathname === item.href;
+                  return (
+                    <Link key={item.href} href={item.href} className={`lk-mobile-tab ${active ? 'active' : ''}`}>
+                      <div>{item.icon}</div>
+                      <div>{item.label}</div>
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          </main>
         </div>
-      </aside>
-      <main className="flex-1 overflow-auto p-6">{children}</main>
+      </div>
     </div>
   );
 }
