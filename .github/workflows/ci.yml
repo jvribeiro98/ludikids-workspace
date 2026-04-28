@@ -36,4 +36,6 @@ jobs:
         run: pnpm --filter api test -- --runInBand --verbose
 
       - name: Build
-        run: pnpm build
+        run: |
+          pnpm --filter api prisma:generate
+          pnpm build
