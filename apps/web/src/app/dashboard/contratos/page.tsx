@@ -13,41 +13,55 @@ interface Contract {
 }
 
 export default function ContratosPage() {
-  const { data: contracts, isLoading } = useQuery({
+  const { data: contracts, isLoading, isError, refetch } = useQuery({
     queryKey: ['contracts'],
     queryFn: () => apiGet<Contract[]>('/contracts'),
   });
 
-  if (isLoading) return <p className="text-slate-400">Carregando...</p>;
+  if (isLoading) return <p className="lk-text-muted">Carregando contratos...</p>;
+
+  if (isError) {
+    return (
+      <div className="lk-card">
+        <h1 className="text-2xl font-bold mb-2">Contratos</h1>
+        <p className="text-red-600">Não foi possível carregar os contratos.</p>
+        <button className="btn btn-secondary mt-3" onClick={() => refetch()}>Tentar novamente</button>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Contratos</h1>
-      <p className="text-slate-400 text-sm">Lista de contratos ativos. Crie contratos pela API ou expanda esta tela com formulário de criação.</p>
-      <div className="card overflow-hidden p-0">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-slate-700 text-left text-sm text-slate-400">
-              <th className="p-3">Criança</th>
-              <th className="p-3">Início</th>
-              <th className="p-3">Vencimento (dia)</th>
-              <th className="p-3">Serviços</th>
-            </tr>
-          </thead>
-          <tbody>
-            {contracts?.map((c) => (
-              <tr key={c.id} className="border-b border-slate-700/50">
-                <td className="p-3">{c.child.name}</td>
-                <td className="p-3">{new Date(c.startDate).toLocaleDateString('pt-BR')}</td>
-                <td className="p-3">{c.dueDay}</td>
-                <td className="p-3">
-                  {c.contractServices.map((cs) => `${cs.service.name} (R$ ${cs.unitPrice})`).join(', ')}
-                </td>
+    <div className="space-y-4">
+      <div className="lk-card">
+        <h1 className="text-2xl font-bold">Contratos</h1>
+        <p className="lk-text-muted">Visão de contratos ativos, vencimento e composição de serviços.</p>
+      </div>
+
+      <div className="lk-card overflow-hidden p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b" style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-muted)' }}>
+                <th className="p-3 text-left">Criança</th>
+                <th className="p-3 text-left">Início</th>
+                <th className="p-3 text-left">Vencimento (dia)</th>
+                <th className="p-3 text-left">Serviços</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {contracts?.length === 0 && <p className="p-4 text-slate-400">Nenhum contrato cadastrado.</p>}
+            </thead>
+            <tbody>
+              {contracts?.map((c) => (
+                <tr key={c.id} className="border-b" style={{ borderColor: 'var(--brand-border)' }}>
+                  <td className="p-3 font-medium">{c.child.name}</td>
+                  <td className="p-3">{new Date(c.startDate).toLocaleDateString('pt-BR')}</td>
+                  <td className="p-3">{c.dueDay}</td>
+                  <td className="p-3">{c.contractServices.map((cs) => `${cs.service.name} (R$ ${cs.unitPrice})`).join(', ')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {contracts?.length === 0 && <p className="p-4 lk-text-muted">Nenhum contrato cadastrado.</p>}
       </div>
     </div>
   );

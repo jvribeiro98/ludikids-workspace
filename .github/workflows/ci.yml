@@ -33,7 +33,11 @@ jobs:
         run: pnpm lint
 
       - name: Test
-        run: pnpm test
+        run: |
+          pnpm --filter api prisma:generate
+          pnpm --filter api test -- --runInBand --verbose
 
       - name: Build
-        run: pnpm build
+        run: |
+          pnpm --filter api prisma:generate
+          pnpm build
