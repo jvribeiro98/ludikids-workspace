@@ -122,22 +122,80 @@ export class BillingService {
   }
 
   async getMonthlySummary(tenantId: string, year: number, month: number) {
-    const cycle = await this.prisma.billingCycle.findUnique({
-      where: { tenantId_year_month: { tenantId, year, month } },
-    });
-    if (!cycle) return { totalExpected: 0, totalPaid: 0, totalPending: 0, overdueCount: 0 };
+    const buildSummary = async (refYear: number, refMonth: number) => {
+      const cycle = await this.prisma.billingCycle.findUnique({
+        where: { tenantId_year_month: { tenantId, year: refYear, month: refMonth } },
+      });
+      if (!cycle) {
+        return {
+          totalExpected: 0,
+          totalPaid: 0,
+          totalPending: 0,
+          overdueCount: 0,
+          expenseTotal: 0,
+          activeChildren: 0,
+          costPerChild: 0,
+        };
+      }
 
-    const invoices = await this.prisma.invoice.findMany({
-      where: { billingCycleId: cycle.id },
-    });
-    const totalExpected = invoices.reduce((s, i) => s + Number(i.total), 0);
-    const totalPaid = invoices.reduce((s, i) => s + Number(i.paidAmount), 0);
-    const totalPending = totalExpected - totalPaid;
-    const overdueCount = invoices.filter(
-      (i) => i.status === InvoiceStatus.OVERDUE || (i.status === InvoiceStatus.PENDING && new Date(i.dueDate) < new Date()),
-    ).length;
+      const invoices = await this.prisma.invoice.findMany({
+        where: { billingCycleId: cycle.id },
+      });
 
-    return { totalExpected, totalPaid, totalPending, overdueCount };
+      const totalExpected = invoices.reduce((s, i) => s + Number(i.total), 0);
+      const totalPaid = invoices.reduce((s, i) => s + Number(i.paidAmount), 0);
+      const totalPending = totalExpected - totalPaid;
+      const overdueCount = invoices.filter(
+        (i) => i.status === InvoiceStatus.OVERDUE || (i.status === InvoiceStatus.PENDING && new Date(i.dueDate) < new Date()),
+      ).length;
+
+      const monthStart = new Date(refYear, refMonth - 1, 1, 0, 0, 0, 0);
+      const monthEnd = new Date(refYear, refMonth, 0, 23, 59, 59, 999);
+
+      const expenses = await this.prisma.expense.aggregate({
+        _sum: { amount: true },
+        where: {
+          tenantId,
+          date: { gte: monthStart, lte: monthEnd },
+        },
+      });
+
+      const activeContracts = await this.prisma.contract.findMany({
+        where: {
+          tenantId,
+          startDate: { lte: monthEnd },
+          OR: [{ endDate: null }, { endDate: { gte: monthStart } }],
+        },
+        select: { childId: true },
+        distinct: ['childId'],
+      });
+
+      const expenseTotal = Number(expenses._sum.amount || 0);
+      const activeChildren = activeContracts.length;
+      const costPerChild = activeChildren > 0 ? expenseTotal / activeChildren : 0;
+
+      return { totalExpected, totalPaid, totalPending, overdueCount, expenseTotal, activeChildren, costPerChild };
+    };
+
+    const current = await buildSummary(year, month);
+
+    const previousDate = new Date(year, month - 2, 1);
+    const previous = await buildSummary(previousDate.getFullYear(), previousDate.getMonth() + 1);
+
+    const comparison = {
+      expectedDelta: current.totalExpected - previous.totalExpected,
+      paidDelta: current.totalPaid - previous.totalPaid,
+      pendingDelta: current.totalPending - previous.totalPending,
+      overdueDelta: current.overdueCount - previous.overdueCount,
+      expenseDelta: current.expenseTotal - previous.expenseTotal,
+      costPerChildDelta: current.costPerChild - previous.costPerChild,
+    };
+
+    return {
+      ...current,
+      previous,
+      comparison,
+    };
   }
 
   /**
