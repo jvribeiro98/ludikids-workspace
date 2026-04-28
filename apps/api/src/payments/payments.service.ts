@@ -30,7 +30,10 @@ export class PaymentsService {
   }
 
   async processAsaasWebhook(payload: any) {
-    if (payload?.event !== 'PAYMENT_RECEIVED') {
+    const supportedEvents = new Set(['PAYMENT_RECEIVED', 'PAYMENT_REFUNDED', 'PAYMENT_DELETED']);
+    const event = payload?.event;
+
+    if (!supportedEvents.has(event)) {
       return { processed: false, reason: 'event_not_supported' as const };
     }
 
@@ -60,6 +63,53 @@ export class PaymentsService {
       return { processed: false, reason: 'invoice_not_found' as const };
     }
 
+    if (event === 'PAYMENT_REFUNDED' || event === 'PAYMENT_DELETED') {
+      const current = await this.prisma.invoice.findUnique({
+        where: { id: invoice.id },
+        select: { paidAmount: true, total: true },
+      });
+
+      if (!current) {
+        return { processed: false, reason: 'invoice_not_found' as const };
+      }
+
+      const refundAmount = new Decimal(Number(payment?.value || 0));
+      const newPaidAmount = new Decimal(current.paidAmount).sub(refundAmount);
+      const clampedPaid = newPaidAmount.lessThan(0) ? new Decimal(0) : newPaidAmount;
+      const status = clampedPaid.greaterThanOrEqualTo(new Decimal(current.total))
+        ? InvoiceStatus.PAID
+        : clampedPaid.greaterThan(0)
+          ? InvoiceStatus.PARTIAL
+          : InvoiceStatus.PENDING;
+
+      await this.prisma.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          paidAmount: clampedPaid,
+          status,
+          paidAt: status === InvoiceStatus.PAID ? undefined : null,
+        },
+      });
+
+      await this.audit.log({
+        tenantId: invoice.tenantId,
+        userId: undefined,
+        action: 'UPDATE',
+        entity: 'Invoice',
+        entityId: invoice.id,
+        newData: {
+          source: 'asaas',
+          event,
+          eventId,
+          refundAmount: Number(refundAmount),
+          paidAmount: Number(clampedPaid),
+          status,
+        },
+      });
+
+      return { processed: true, invoiceId: invoice.id, action: 'reverted' as const };
+    }
+
     const amount = Number(payment?.value || 0);
     const paidAt = payment?.paymentDate ? new Date(payment.paymentDate) : new Date();
     const method = this.mapAsaasBillingTypeToMethod(payment?.billingType);
@@ -75,7 +125,7 @@ export class PaymentsService {
       `Asaas paymentId=${payment?.id || 'unknown'}`,
     );
 
-    return { processed: true, invoiceId: invoice.id };
+    return { processed: true, invoiceId: invoice.id, action: 'received' as const };
   }
 
   async register(
