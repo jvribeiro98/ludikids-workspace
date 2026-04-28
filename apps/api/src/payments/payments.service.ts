@@ -12,6 +12,72 @@ export class PaymentsService {
     private audit: AuditService,
   ) {}
 
+  private mapAsaasBillingTypeToMethod(billingType?: string) {
+    switch ((billingType || '').toUpperCase()) {
+      case 'PIX':
+        return 'PIX';
+      case 'BOLETO':
+        return 'BOLETO';
+      case 'CREDIT_CARD':
+      case 'DEBIT_CARD':
+        return 'CARD';
+      case 'BANK_TRANSFER':
+      case 'TRANSFER':
+        return 'TRANSFER';
+      default:
+        return 'OTHER';
+    }
+  }
+
+  async processAsaasWebhook(payload: any) {
+    if (payload?.event !== 'PAYMENT_RECEIVED') {
+      return { processed: false, reason: 'event_not_supported' as const };
+    }
+
+    const eventId = payload?.id;
+    const payment = payload?.payment || {};
+    const invoiceId = payment?.externalReference;
+
+    if (!eventId || !invoiceId) {
+      return { processed: false, reason: 'missing_required_data' as const };
+    }
+
+    const duplicated = await this.prisma.payment.findFirst({
+      where: { reference: eventId },
+      select: { id: true },
+    });
+
+    if (duplicated) {
+      return { processed: false, reason: 'duplicate_event' as const };
+    }
+
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId },
+      select: { id: true, tenantId: true },
+    });
+
+    if (!invoice) {
+      return { processed: false, reason: 'invoice_not_found' as const };
+    }
+
+    const amount = Number(payment?.value || 0);
+    const paidAt = payment?.paymentDate ? new Date(payment.paymentDate) : new Date();
+    const method = this.mapAsaasBillingTypeToMethod(payment?.billingType);
+
+    await this.register(
+      invoice.tenantId,
+      undefined,
+      invoice.id,
+      amount,
+      method,
+      paidAt,
+      eventId,
+      `Asaas paymentId=${payment?.id || 'unknown'}`,
+    );
+
+    return { processed: true, invoiceId: invoice.id };
+  }
+
   async register(
     tenantId: string,
     userId: string | undefined,
