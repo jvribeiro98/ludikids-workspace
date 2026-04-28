@@ -51,6 +51,23 @@ export class ChildrenController {
     return this.childrenService.remove(tenantId, id);
   }
 
+  @Get(':childId/timeline')
+  timeline(
+    @CurrentUser('tenantId') tenantId: string,
+    @Param('childId') childId: string,
+    @Query('type') type?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.childrenService.getTimeline(tenantId, childId, {
+      type,
+      from,
+      to,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+  }
+
   @Get(':childId/addresses')
   listAddresses(@CurrentUser('tenantId') tenantId: string, @Param('childId') childId: string) {
     return this.childrenService.listAddresses(tenantId, childId);
