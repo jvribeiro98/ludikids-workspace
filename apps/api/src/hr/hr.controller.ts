@@ -60,7 +60,7 @@ export class HrController {
 
   @Get('report')
   @UseGuards(RolesGuard)
-  @Roles(RoleName.MODERADOR, RoleName.ADMINISTRADOR)
+  @Roles(RoleName.MODERADOR, RoleName.ADMINISTRADOR, RoleName.ADMIN_CEO, RoleName.COORDENACAO)
   getMonthlyReport(
     @CurrentUser('tenantId') tenantId: string,
     @Query('year') year: string,
