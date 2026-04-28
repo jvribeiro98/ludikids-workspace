@@ -1,12 +1,15 @@
 import { Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { FullAccess } from '../auth/decorators/rbac-groups.decorator';
+
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { BackupsService } from './backups.service';
 
 @ApiTags('Backups')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@FullAccess()
 @Controller('backups')
 export class BackupsController {
   constructor(private backupsService: BackupsService) {}

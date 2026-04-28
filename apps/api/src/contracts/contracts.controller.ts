@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AcademicAccess } from '../auth/decorators/rbac-groups.decorator';
+
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ContractsService } from './contracts.service';
 import { CreateContractDto } from './dto/create-contract.dto';
@@ -9,6 +11,7 @@ import { UpdateContractDto } from './dto/update-contract.dto';
 @ApiTags('Contratos')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@AcademicAccess()
 @Controller('contracts')
 export class ContractsController {
   constructor(private contractsService: ContractsService) {}

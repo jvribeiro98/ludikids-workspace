@@ -1,12 +1,15 @@
 import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AcademicAccess } from '../auth/decorators/rbac-groups.decorator';
+
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { DailyLogsService } from './daily-logs.service';
 
 @ApiTags('Diário')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@AcademicAccess()
 @Controller('daily-logs')
 export class DailyLogsController {
   constructor(private dailyLogsService: DailyLogsService) {}

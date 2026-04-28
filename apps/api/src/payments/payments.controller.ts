@@ -1,6 +1,8 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { FinancialAccess } from '../auth/decorators/rbac-groups.decorator';
+
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -8,6 +10,7 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 @ApiTags('Pagamentos')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@FinancialAccess()
 @Controller('payments')
 export class PaymentsController {
   constructor(private paymentsService: PaymentsService) {}

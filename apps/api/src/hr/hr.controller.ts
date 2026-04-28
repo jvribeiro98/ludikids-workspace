@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ManagementAccess } from '../auth/decorators/rbac-groups.decorator';
+
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -10,6 +12,7 @@ import { RoleName } from '@prisma/client';
 @ApiTags('RH')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@ManagementAccess()
 @Controller('hr')
 export class HrController {
   constructor(private hrService: HrService) {}

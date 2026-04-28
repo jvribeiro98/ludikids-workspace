@@ -1,12 +1,15 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { FinancialAccess } from '../auth/decorators/rbac-groups.decorator';
+
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { BillingService } from './billing.service';
 
 @ApiTags('Faturamento')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@FinancialAccess()
 @Controller('billing')
 export class BillingController {
   constructor(private billingService: BillingService) {}
