@@ -3,7 +3,7 @@ import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
 
-const ROLES = ['MODERADOR', 'ADMINISTRADOR', 'COORDENACAO', 'PROFESSOR'] as const;
+const ROLES = ['MODERADOR', 'ADMINISTRADOR', 'ADMIN_CEO', 'COORDENACAO', 'FINANCEIRO', 'PROFESSOR', 'FUNCIONARIO'] as const;
 type RoleName = (typeof ROLES)[number];
 
 async function ensureUserWithRole(params: {

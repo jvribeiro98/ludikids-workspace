@@ -7,8 +7,11 @@ export const APP_NAME = 'LudiKids';
 export const ROLE_NAMES = {
   MODERADOR: 'MODERADOR',
   ADMINISTRADOR: 'ADMINISTRADOR',
+  ADMIN_CEO: 'ADMIN_CEO',
   COORDENACAO: 'COORDENACAO',
+  FINANCEIRO: 'FINANCEIRO',
   PROFESSOR: 'PROFESSOR',
+  FUNCIONARIO: 'FUNCIONARIO',
 } as const;
 
 export type RoleName = (typeof ROLE_NAMES)[keyof typeof ROLE_NAMES];

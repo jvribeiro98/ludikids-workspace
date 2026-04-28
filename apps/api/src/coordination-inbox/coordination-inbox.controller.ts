@@ -1,12 +1,15 @@
 import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ManagementAccess } from '../auth/decorators/rbac-groups.decorator';
+
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CoordinationInboxService } from './coordination-inbox.service';
 
 @ApiTags('Inbox Coordenação')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@ManagementAccess()
 @Controller('coordination-inbox')
 export class CoordinationInboxController {
   constructor(private coordinationInboxService: CoordinationInboxService) {}

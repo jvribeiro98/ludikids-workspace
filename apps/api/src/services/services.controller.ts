@@ -1,12 +1,15 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ManagementAccess } from '../auth/decorators/rbac-groups.decorator';
+
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ServicesService } from './services.service';
 
 @ApiTags('Serviços')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@ManagementAccess()
 @Controller('services')
 export class ServicesController {
   constructor(private servicesService: ServicesService) {}

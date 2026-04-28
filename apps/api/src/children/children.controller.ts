@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AcademicAccess } from '../auth/decorators/rbac-groups.decorator';
+
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ChildrenService } from './children.service';
 import { CreateChildDto } from './dto/create-child.dto';
@@ -9,6 +11,7 @@ import { UpdateChildDto } from './dto/update-child.dto';
 @ApiTags('Crianças')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@AcademicAccess()
 @Controller('children')
 export class ChildrenController {
   constructor(private childrenService: ChildrenService) {}

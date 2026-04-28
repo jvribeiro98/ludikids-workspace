@@ -1,12 +1,15 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AcademicAccess } from '../auth/decorators/rbac-groups.decorator';
+
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ClassesService } from './classes.service';
 
 @ApiTags('Turmas')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@AcademicAccess()
 @Controller('classes')
 export class ClassesController {
   constructor(private classesService: ClassesService) {}

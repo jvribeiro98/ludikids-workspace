@@ -15,8 +15,11 @@ datasource db {
 enum RoleName {
   MODERADOR
   ADMINISTRADOR
+  ADMIN_CEO
   COORDENACAO
+  FINANCEIRO
   PROFESSOR
+  FUNCIONARIO
 }
 
 enum InvoiceStatus {

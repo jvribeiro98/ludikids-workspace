@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ManagementAccess } from '../auth/decorators/rbac-groups.decorator';
+
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { WhatsAppService } from './whatsapp.service';
 import { MessageRuleTrigger } from '@prisma/client';
@@ -8,6 +10,7 @@ import { MessageRuleTrigger } from '@prisma/client';
 @ApiTags('WhatsApp')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@ManagementAccess()
 @Controller('whatsapp')
 export class WhatsAppController {
   constructor(private whatsAppService: WhatsAppService) {}

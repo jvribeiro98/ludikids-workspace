@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { FinancialAccess } from '../auth/decorators/rbac-groups.decorator';
+
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ExpensesService } from './expenses.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
@@ -8,6 +10,7 @@ import { CreateExpenseDto } from './dto/create-expense.dto';
 @ApiTags('Gastos')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@FinancialAccess()
 @Controller('expenses')
 export class ExpensesController {
   constructor(private expensesService: ExpensesService) {}
