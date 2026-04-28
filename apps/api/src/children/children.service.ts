@@ -154,4 +154,92 @@ export class ChildrenService {
     if (!pickup) throw new Error('Autorizado não encontrado');
     return this.prisma.authorizedPickup.delete({ where: { id: pickupId } });
   }
+
+  async getTimeline(
+    tenantId: string,
+    childId: string,
+    opts?: { type?: string; from?: string; to?: string; limit?: number },
+  ) {
+    await this.prisma.child.findFirstOrThrow({ where: { id: childId, tenantId } });
+
+    const from = opts?.from ? new Date(opts.from) : undefined;
+    const to = opts?.to ? new Date(opts.to) : undefined;
+    const limit = Math.min(Math.max(opts?.limit ?? 100, 1), 500);
+
+    const inRange = (date: Date) => {
+      if (from && date < from) return false;
+      if (to && date > to) return false;
+      return true;
+    };
+
+    const [child, contracts, documents, dailyLogItems, coordinationItems, invoices] = await Promise.all([
+      this.prisma.child.findFirstOrThrow({ where: { id: childId, tenantId } }),
+      this.prisma.contract.findMany({ where: { tenantId, childId }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.childDocument.findMany({ where: { tenantId, childId }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.dailyLogItem.findMany({
+        where: { childId },
+        include: { dailyLog: true, incidents: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.coordinationInboxItem.findMany({
+        where: { tenantId, childId },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.invoice.findMany({ where: { tenantId, childId }, orderBy: { dueDate: 'desc' } }),
+    ]);
+
+    const events = [
+      {
+        type: 'matricula',
+        at: child.createdAt,
+        title: 'Matrícula criada',
+        detail: `Aluno ${child.name} cadastrado no sistema.`,
+      },
+      ...contracts.map((c) => ({
+        type: 'contrato',
+        at: c.createdAt,
+        title: 'Contrato registrado',
+        detail: `Início ${c.startDate.toISOString().slice(0, 10)} • vencimento dia ${c.dueDay}`,
+      })),
+      ...documents.map((d) => ({
+        type: 'documento',
+        at: d.createdAt,
+        title: 'Documento anexado',
+        detail: `${d.type}: ${d.fileName}`,
+      })),
+      ...dailyLogItems.map((i) => ({
+        type: 'diario',
+        at: i.createdAt,
+        title: 'Registro diário',
+        detail: i.observations || `Lançamento no diário (${i.dailyLog.date.toISOString().slice(0, 10)})`,
+      })),
+      ...dailyLogItems.flatMap((i) =>
+        i.incidents.map((incident) => ({
+          type: 'ocorrencia',
+          at: incident.createdAt,
+          title: 'Ocorrência registrada',
+          detail: incident.description,
+        })),
+      ),
+      ...coordinationItems.map((item) => ({
+        type: 'coordenacao',
+        at: item.createdAt,
+        title: 'Inbox da coordenação',
+        detail: `Status: ${item.status}${item.notes ? ` • ${item.notes}` : ''}`,
+      })),
+      ...invoices.map((inv) => ({
+        type: 'financeiro',
+        at: inv.dueDate,
+        title: 'Fatura vinculada ao aluno',
+        detail: `Status ${inv.status} • total ${Number(inv.total).toFixed(2)}`,
+      })),
+    ]
+      .filter((e) => inRange(e.at))
+      .filter((e) => (!opts?.type ? true : e.type === opts.type))
+      .sort((a, b) => b.at.getTime() - a.at.getTime())
+      .slice(0, limit)
+      .map((e) => ({ ...e, at: e.at.toISOString() }));
+
+    return { childId, total: events.length, events };
+  }
 }
