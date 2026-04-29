@@ -94,7 +94,7 @@ describe('BillingService.getMonthlySummary', () => {
 describe('BillingService.getReconciliationReport', () => {
   const prisma = {
     billingCycle: { findUnique: jest.fn() },
-    invoice: { findMany: jest.fn() },
+    invoice: { findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
   } as any;
   const audit = { log: jest.fn() } as any;
   const service = new BillingService(prisma, audit);
@@ -146,6 +146,40 @@ describe('BillingService.getReconciliationReport', () => {
       invoiceId: 'inv-2',
       childName: 'Bia',
       delta: 30,
+    });
+  });
+
+  it('reconcilia uma fatura ajustando paidAmount para a soma de pagamentos', async () => {
+    prisma.invoice.findFirst.mockResolvedValue({
+      id: 'inv-2',
+      tenantId: 'tenant-1',
+      paidAmount: 150,
+      total: 200,
+      payments: [{ amount: 120 }],
+    });
+    prisma.invoice.update.mockResolvedValue({
+      id: 'inv-2',
+      paidAmount: 120,
+      status: InvoiceStatus.PARTIAL,
+    });
+
+    const result = await service.reconcileInvoice('tenant-1', 'inv-2', 'user-1');
+
+    expect(prisma.invoice.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'inv-2' },
+        data: expect.objectContaining({
+          paidAmount: 120,
+          status: InvoiceStatus.PARTIAL,
+        }),
+      }),
+    );
+    expect(result).toMatchObject({
+      invoiceId: 'inv-2',
+      previousPaidAmount: 150,
+      reconciledPaidAmount: 120,
+      deltaApplied: -30,
+      status: InvoiceStatus.PARTIAL,
     });
   });
 });
