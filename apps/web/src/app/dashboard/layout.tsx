@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/components/BrandingProvider';
+import { FINANCIAL_ROLES, hasAnyRole } from '@/lib/rbac';
 
 const nav = [
   { href: '/dashboard', label: 'Dashboard', icon: '🏠' },
@@ -20,6 +21,11 @@ const nav = [
 ];
 
 const mobileTabs = nav.slice(0, 5);
+
+function canAccessNav(href: string, userRoles: string[]) {
+  if (href === '/dashboard/financeiro') return hasAnyRole(userRoles, FINANCIAL_ROLES);
+  return true;
+}
 
 export default function DashboardLayout({
   children,
@@ -72,7 +78,7 @@ export default function DashboardLayout({
               </div>
 
               <nav className="flex-1 mt-4 space-y-1 overflow-y-auto">
-                {nav.map((item) => {
+                {nav.filter((item) => canAccessNav(item.href, user.roles)).map((item) => {
                   const active = pathname === item.href;
                   return (
                     <Link
@@ -101,7 +107,7 @@ export default function DashboardLayout({
             {children}
             <div className="lg:hidden">
               <nav className="lk-mobile-tabbar" aria-label="Ações rápidas mobile">
-                {mobileTabs.map((item) => {
+                {mobileTabs.filter((item) => canAccessNav(item.href, user.roles)).map((item) => {
                   const active = pathname === item.href;
                   return (
                     <Link key={item.href} href={item.href} className={`lk-mobile-tab ${active ? 'active' : ''}`}>

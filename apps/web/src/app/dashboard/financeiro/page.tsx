@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { FINANCIAL_ROLES, hasAnyRole } from '@/lib/rbac';
 
 const now = new Date();
 
@@ -34,6 +36,8 @@ type ReconciliationHistoryRow = {
 };
 
 export default function FinanceiroPage() {
+  const { user } = useAuth();
+  const canAccessFinance = hasAnyRole(user?.roles, FINANCIAL_ROLES);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [paymentModal, setPaymentModal] = useState<{ invoiceId: string; total: number } | null>(null);
@@ -96,6 +100,16 @@ export default function FinanceiroPage() {
 
   const fmt = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
   const availableYears = Array.from({ length: 6 }, (_, i) => now.getFullYear() - 3 + i);
+
+  if (!canAccessFinance) {
+    return (
+      <div className="lk-card">
+        <h1 className="text-2xl font-bold">Financeiro</h1>
+        <p className="text-red-700 font-medium mt-2">Você não possui permissão para acessar este módulo.</p>
+        <p className="lk-text-muted mt-1">Perfis com acesso: Financeiro, Administrador e Admin/CEO.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
