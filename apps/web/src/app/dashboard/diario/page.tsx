@@ -3,8 +3,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPut } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { ACADEMIC_ROLES, hasAnyRole } from '@/lib/rbac';
 
 export default function DiarioPage() {
+  const { user } = useAuth();
+  const canAccess = hasAnyRole(user?.roles, ACADEMIC_ROLES);
   const [classId, setClassId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const queryClient = useQueryClient();
@@ -24,6 +28,15 @@ export default function DiarioPage() {
     mutationFn: ({ id, body }: { id: string; body: any }) => apiPut(`/daily-logs/items/${id}`, body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['daily-log'] }),
   });
+
+  if (!canAccess) {
+    return (
+      <div className="lk-card">
+        <h1 className="text-2xl font-bold">Painel diário</h1>
+        <p className="text-red-700 font-medium mt-2">Você não possui permissão para acessar este módulo.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

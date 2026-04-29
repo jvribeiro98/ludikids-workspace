@@ -3,8 +3,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { MANAGEMENT_ROLES, hasAnyRole } from '@/lib/rbac';
 
 export default function RHPage() {
+  const { user } = useAuth();
+  const canAccess = hasAnyRole(user?.roles, MANAGEMENT_ROLES);
   const [staffId, setStaffId] = useState('');
   const [punchType, setPunchType] = useState<'ENTRY' | 'EXIT'>('ENTRY');
   const [geo, setGeo] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
@@ -28,6 +32,15 @@ export default function RHPage() {
     e.preventDefault();
     if (!staffId) return;
     punchMutation.mutate({ staffProfileId: staffId, type: punchType, latitude: geo?.lat, longitude: geo?.lng, accuracy: geo?.accuracy });
+  }
+
+  if (!canAccess) {
+    return (
+      <div className="lk-card">
+        <h1 className="text-2xl font-bold">RH</h1>
+        <p className="text-red-700 font-medium mt-2">Você não possui permissão para acessar este módulo.</p>
+      </div>
+    );
   }
 
   return (

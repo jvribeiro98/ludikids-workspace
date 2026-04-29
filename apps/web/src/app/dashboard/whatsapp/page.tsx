@@ -3,8 +3,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { MANAGEMENT_ROLES, hasAnyRole } from '@/lib/rbac';
 
 export default function WhatsAppPage() {
+  const { user } = useAuth();
+  const canAccess = hasAnyRole(user?.roles, MANAGEMENT_ROLES);
   const [tab, setTab] = useState<'templates' | 'rules' | 'outbox'>('outbox');
   const queryClient = useQueryClient();
 
@@ -14,6 +18,15 @@ export default function WhatsAppPage() {
 
   const processMutation = useMutation({ mutationFn: () => apiPost('/whatsapp/process-rules', {}), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['whatsapp-outbox'] }) });
   const sendStubMutation = useMutation({ mutationFn: () => apiPost('/whatsapp/send-queued-stub', {}), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['whatsapp-outbox'] }) });
+
+  if (!canAccess) {
+    return (
+      <div className="lk-card">
+        <h1 className="text-2xl font-bold">Comunicação (WhatsApp)</h1>
+        <p className="text-red-700 font-medium mt-2">Você não possui permissão para acessar este módulo.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

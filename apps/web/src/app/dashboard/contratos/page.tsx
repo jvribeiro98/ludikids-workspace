@@ -2,6 +2,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { ACADEMIC_ROLES, hasAnyRole } from '@/lib/rbac';
 
 interface Contract {
   id: string;
@@ -13,10 +15,21 @@ interface Contract {
 }
 
 export default function ContratosPage() {
+  const { user } = useAuth();
+  const canAccess = hasAnyRole(user?.roles, ACADEMIC_ROLES);
   const { data: contracts, isLoading, isError, refetch } = useQuery({
     queryKey: ['contracts'],
     queryFn: () => apiGet<Contract[]>('/contracts'),
   });
+
+  if (!canAccess) {
+    return (
+      <div className="lk-card">
+        <h1 className="text-2xl font-bold">Contratos</h1>
+        <p className="text-red-700 font-medium mt-2">Você não possui permissão para acessar este módulo.</p>
+      </div>
+    );
+  }
 
   if (isLoading) return <p className="lk-text-muted">Carregando contratos...</p>;
 

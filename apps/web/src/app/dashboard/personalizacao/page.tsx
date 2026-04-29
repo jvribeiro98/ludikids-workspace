@@ -4,6 +4,8 @@ import { ChangeEvent, useState } from 'react';
 import Image from 'next/image';
 import { useBranding } from '@/components/BrandingProvider';
 import { BrandingSettings, defaultBranding, isHexColor } from '@/lib/branding';
+import { useAuth } from '@/contexts/AuthContext';
+import { FULL_ACCESS_ROLES, hasAnyRole } from '@/lib/rbac';
 
 const colorFields: Array<{ key: keyof BrandingSettings['colors']; label: string }> = [
   { key: 'primary', label: 'Primária' },
@@ -17,6 +19,8 @@ const colorFields: Array<{ key: keyof BrandingSettings['colors']; label: string 
 ];
 
 export default function PersonalizacaoPage() {
+  const { user } = useAuth();
+  const canAccess = hasAnyRole(user?.roles, FULL_ACCESS_ROLES);
   const { branding, updateBranding, resetBranding } = useBranding();
   const [draft, setDraft] = useState<BrandingSettings>(branding);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +42,15 @@ export default function PersonalizacaoPage() {
     setError(null);
     updateBranding(draft);
   };
+
+  if (!canAccess) {
+    return (
+      <div className="lk-card">
+        <h1 className="text-2xl font-bold">Personalização (whitelabel)</h1>
+        <p className="text-red-700 font-medium mt-2">Você não possui permissão para acessar este módulo.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

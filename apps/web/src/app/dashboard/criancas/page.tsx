@@ -3,10 +3,14 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { ACADEMIC_ROLES, hasAnyRole } from '@/lib/rbac';
 
 interface Child { id: string; name: string; birthDate: string | null; class: { id: string; name: string } | null; }
 
 export default function CriancasPage() {
+  const { user } = useAuth();
+  const canAccess = hasAnyRole(user?.roles, ACADEMIC_ROLES);
   const [modal, setModal] = useState<'create' | 'edit' | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -23,6 +27,15 @@ export default function CriancasPage() {
   const deleteMutation = useMutation({ mutationFn: (id: string) => apiDelete(`/children/${id}`), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['children'] }), onError: (err: Error) => setFormError(err.message || 'Falha ao excluir criança.') });
 
   function openEdit(c: Child) { setEditId(c.id); setName(c.name); setBirthDate(c.birthDate ? c.birthDate.slice(0, 10) : ''); setClassId(c.class?.id ?? ''); setFormError(''); setModal('edit'); }
+
+  if (!canAccess) {
+    return (
+      <div className="lk-card">
+        <h1 className="text-2xl font-bold">Alunos</h1>
+        <p className="text-red-700 font-medium mt-2">Você não possui permissão para acessar este módulo.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
