@@ -267,6 +267,76 @@ export class BillingService {
     return updated;
   }
 
+  async getReconciliationReport(tenantId: string, year: number, month: number) {
+    const cycle = await this.prisma.billingCycle.findUnique({
+      where: { tenantId_year_month: { tenantId, year, month } },
+    });
+
+    if (!cycle) {
+      return {
+        summary: {
+          totalInvoices: 0,
+          expectedTotal: 0,
+          invoicePaidTotal: 0,
+          paymentsTotal: 0,
+          paidVsPaymentsDelta: 0,
+          divergentCount: 0,
+        },
+        divergentInvoices: [],
+        invoices: [],
+      };
+    }
+
+    const invoices = await this.prisma.invoice.findMany({
+      where: { tenantId, billingCycleId: cycle.id },
+      include: {
+        child: true,
+        payments: true,
+      },
+      orderBy: { dueDate: 'asc' },
+    });
+
+    const parsedInvoices = invoices.map((inv) => {
+      const expected = Number(inv.total);
+      const invoicePaid = Number(inv.paidAmount);
+      const paymentsTotal = inv.payments.reduce((sum, pay) => sum + Number(pay.amount), 0);
+      const delta = Number((invoicePaid - paymentsTotal).toFixed(2));
+
+      return {
+        invoiceId: inv.id,
+        childId: inv.childId,
+        childName: inv.child?.name ?? '',
+        status: inv.status,
+        dueDate: inv.dueDate,
+        expected,
+        invoicePaid,
+        paymentsTotal,
+        delta,
+        paymentCount: inv.payments.length,
+      };
+    });
+
+    const expectedTotal = parsedInvoices.reduce((sum, i) => sum + i.expected, 0);
+    const invoicePaidTotal = parsedInvoices.reduce((sum, i) => sum + i.invoicePaid, 0);
+    const paymentsTotal = parsedInvoices.reduce((sum, i) => sum + i.paymentsTotal, 0);
+    const paidVsPaymentsDelta = Number((invoicePaidTotal - paymentsTotal).toFixed(2));
+
+    const divergentInvoices = parsedInvoices.filter((i) => Math.abs(i.delta) >= 0.01);
+
+    return {
+      summary: {
+        totalInvoices: parsedInvoices.length,
+        expectedTotal,
+        invoicePaidTotal,
+        paymentsTotal,
+        paidVsPaymentsDelta,
+        divergentCount: divergentInvoices.length,
+      },
+      divergentInvoices,
+      invoices: parsedInvoices,
+    };
+  }
+
   async getOverdueReport(tenantId: string, referenceMonth?: string) {
     const ref = referenceMonth ? new Date(referenceMonth) : new Date();
     const refYear = ref.getFullYear();

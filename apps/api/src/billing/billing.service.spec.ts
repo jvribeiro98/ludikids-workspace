@@ -5,6 +5,7 @@ describe('BillingService.getMonthlySummary', () => {
   const prisma = {
     billingCycle: { findUnique: jest.fn() },
     invoice: { findMany: jest.fn() },
+    payment: { findMany: jest.fn() },
     expense: { aggregate: jest.fn() },
     contract: { findMany: jest.fn() },
   } as any;
@@ -86,6 +87,65 @@ describe('BillingService.getMonthlySummary', () => {
       overdueDelta: 1,
       expenseDelta: 100,
       costPerChildDelta: -50,
+    });
+  });
+});
+
+describe('BillingService.getReconciliationReport', () => {
+  const prisma = {
+    billingCycle: { findUnique: jest.fn() },
+    invoice: { findMany: jest.fn() },
+  } as any;
+  const audit = { log: jest.fn() } as any;
+  const service = new BillingService(prisma, audit);
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('retorna payload vazio quando ciclo não existe', async () => {
+    prisma.billingCycle.findUnique.mockResolvedValue(null);
+
+    const result = await service.getReconciliationReport('tenant-1', 2026, 4);
+
+    expect(result.summary.totalInvoices).toBe(0);
+    expect(result.summary.expectedTotal).toBe(0);
+    expect(result.summary.invoicePaidTotal).toBe(0);
+    expect(result.summary.paymentsTotal).toBe(0);
+    expect(result.divergentInvoices).toEqual([]);
+  });
+
+  it('aponta divergências entre paidAmount da fatura e soma dos pagamentos', async () => {
+    prisma.billingCycle.findUnique.mockResolvedValue({ id: 'cycle-1' });
+    prisma.invoice.findMany.mockResolvedValue([
+      {
+        id: 'inv-1',
+        child: { name: 'Ana' },
+        status: InvoiceStatus.PAID,
+        total: 100,
+        paidAmount: 100,
+        payments: [{ amount: 100, reference: 'evt-1' }],
+      },
+      {
+        id: 'inv-2',
+        child: { name: 'Bia' },
+        status: InvoiceStatus.PARTIAL,
+        total: 200,
+        paidAmount: 150,
+        payments: [{ amount: 120, reference: null }],
+      },
+    ]);
+
+    const result = await service.getReconciliationReport('tenant-1', 2026, 4);
+
+    expect(result.summary.totalInvoices).toBe(2);
+    expect(result.summary.expectedTotal).toBe(300);
+    expect(result.summary.invoicePaidTotal).toBe(250);
+    expect(result.summary.paymentsTotal).toBe(220);
+    expect(result.summary.paidVsPaymentsDelta).toBe(30);
+    expect(result.summary.divergentCount).toBe(1);
+    expect(result.divergentInvoices[0]).toMatchObject({
+      invoiceId: 'inv-2',
+      childName: 'Bia',
+      delta: 30,
     });
   });
 });
