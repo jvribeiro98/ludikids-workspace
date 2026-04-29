@@ -495,6 +495,30 @@ export class BillingService {
     };
   }
 
+  async getReconciliationHistory(tenantId: string, year: number, month: number, limit = 20) {
+    const start = new Date(year, month - 1, 1, 0, 0, 0, 0);
+    const end = new Date(year, month, 0, 23, 59, 59, 999);
+
+    const logs = await this.prisma.auditLog.findMany({
+      where: {
+        tenantId,
+        action: 'BILLING_RECONCILE_INVOICE',
+        createdAt: { gte: start, lte: end },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(limit, 1), 100),
+    });
+
+    return logs.map((log) => ({
+      id: log.id,
+      createdAt: log.createdAt,
+      userId: log.userId,
+      invoiceId: log.entityId,
+      oldData: log.oldData,
+      newData: log.newData,
+    }));
+  }
+
   async getOverdueReport(tenantId: string, referenceMonth?: string) {
     const ref = referenceMonth ? new Date(referenceMonth) : new Date();
     const refYear = ref.getFullYear();

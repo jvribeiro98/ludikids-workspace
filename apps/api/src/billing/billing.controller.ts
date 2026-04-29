@@ -78,6 +78,21 @@ export class BillingController {
     );
   }
 
+  @Get('reconciliation/history')
+  getReconciliationHistory(
+    @CurrentUser('tenantId') tenantId: string,
+    @Query('year') year: string,
+    @Query('month') month: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.billingService.getReconciliationHistory(
+      tenantId,
+      parseInt(year, 10),
+      parseInt(month, 10),
+      limit ? parseInt(limit, 10) : 20,
+    );
+  }
+
   @Post('reconciliation/reconcile-invoice')
   reconcileInvoice(
     @CurrentUser('tenantId') tenantId: string,

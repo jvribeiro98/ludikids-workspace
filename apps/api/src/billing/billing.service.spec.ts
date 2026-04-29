@@ -95,6 +95,7 @@ describe('BillingService.getReconciliationReport', () => {
   const prisma = {
     billingCycle: { findUnique: jest.fn() },
     invoice: { findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
+    auditLog: { findMany: jest.fn() },
   } as any;
   const audit = { log: jest.fn() } as any;
   const service = new BillingService(prisma, audit);
@@ -229,5 +230,32 @@ describe('BillingService.getReconciliationReport', () => {
     expect(result.reconciledInvoices).toHaveLength(2);
     expect(prisma.invoice.update).toHaveBeenCalledTimes(2);
     expect(audit.log).toHaveBeenCalledTimes(2);
+  });
+
+  it('retorna histórico de reconciliação por competência', async () => {
+    prisma.auditLog.findMany.mockResolvedValue([
+      {
+        id: 'log-1',
+        createdAt: new Date('2026-04-29T10:00:00Z'),
+        userId: 'user-1',
+        entityId: 'inv-2',
+        oldData: { paidAmount: 150, status: 'PARTIAL' },
+        newData: { paidAmount: 120, status: 'PARTIAL' },
+      },
+    ]);
+
+    const result = await service.getReconciliationHistory('tenant-1', 2026, 4, 10);
+
+    expect(prisma.auditLog.findMany).toHaveBeenCalled();
+    expect(result).toEqual([
+      {
+        id: 'log-1',
+        createdAt: new Date('2026-04-29T10:00:00Z'),
+        userId: 'user-1',
+        invoiceId: 'inv-2',
+        oldData: { paidAmount: 150, status: 'PARTIAL' },
+        newData: { paidAmount: 120, status: 'PARTIAL' },
+      },
+    ]);
   });
 });

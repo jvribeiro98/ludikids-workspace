@@ -26,6 +26,15 @@ type ReconciliationRow = {
   delta: number;
 };
 
+type ReconciliationHistoryRow = {
+  id: string;
+  createdAt: string;
+  userId?: string;
+  invoiceId?: string;
+  oldData?: { paidAmount?: number; status?: string };
+  newData?: { paidAmount?: number; status?: string };
+};
+
 export default function FinanceiroPage() {
   const [paymentModal, setPaymentModal] = useState<{ invoiceId: string; total: number } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -53,6 +62,12 @@ export default function FinanceiroPage() {
       apiGet<{ summary: ReconciliationSummary; divergentInvoices: ReconciliationRow[] }>(
         `/billing/reconciliation?year=${year}&month=${month}`,
       ),
+  });
+
+  const { data: reconciliationHistory, refetch: refetchReconciliationHistory } = useQuery({
+    queryKey: ['billing-reconciliation-history', year, month],
+    queryFn: () =>
+      apiGet<ReconciliationHistoryRow[]>(`/billing/reconciliation/history?year=${year}&month=${month}&limit=20`),
   });
 
   const { data: invoices, isLoading, isError: invoicesError, refetch: refetchInvoices } = useQuery({
@@ -116,7 +131,12 @@ export default function FinanceiroPage() {
                 setUiError('');
                 try {
                   await apiPost('/billing/reconciliation/reconcile-all', { year, month });
-                  await Promise.all([refetchReconciliation(), refetchInvoices(), refetchSummary()]);
+                  await Promise.all([
+                    refetchReconciliation(),
+                    refetchInvoices(),
+                    refetchSummary(),
+                    refetchReconciliationHistory(),
+                  ]);
                 } catch (err: any) {
                   setUiError(err?.message || 'Falha ao reconciliar todas as faturas divergentes.');
                 }
@@ -178,6 +198,7 @@ export default function FinanceiroPage() {
                               refetchReconciliation(),
                               refetchInvoices(),
                               refetchSummary(),
+                              refetchReconciliationHistory(),
                             ]);
                           } catch (err: any) {
                             setUiError(err?.message || 'Falha ao reconciliar fatura.');
@@ -194,6 +215,46 @@ export default function FinanceiroPage() {
           </div>
         ) : (
           <p className="lk-text-muted">Sem divergências para a competência atual.</p>
+        )}
+      </div>
+
+      <div className="lk-card">
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <h2 className="font-semibold">Histórico de conciliações ({month}/{year})</h2>
+          <button className="btn btn-secondary" onClick={() => refetchReconciliationHistory()}>
+            Atualizar histórico
+          </button>
+        </div>
+
+        {(reconciliationHistory?.length ?? 0) > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b" style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-muted)' }}>
+                  <th className="p-3 text-left">Data</th>
+                  <th className="p-3 text-left">Fatura</th>
+                  <th className="p-3 text-left">Usuário</th>
+                  <th className="p-3 text-left">Pago (antes)</th>
+                  <th className="p-3 text-left">Pago (depois)</th>
+                  <th className="p-3 text-left">Status (antes → depois)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reconciliationHistory?.map((row) => (
+                  <tr key={row.id} className="border-b" style={{ borderColor: 'var(--brand-border)' }}>
+                    <td className="p-3">{new Date(row.createdAt).toLocaleString('pt-BR')}</td>
+                    <td className="p-3 lk-text-number">{row.invoiceId ?? '-'}</td>
+                    <td className="p-3">{row.userId ?? 'sistema'}</td>
+                    <td className="p-3 lk-text-number">{fmt(Number(row.oldData?.paidAmount ?? 0))}</td>
+                    <td className="p-3 lk-text-number">{fmt(Number(row.newData?.paidAmount ?? 0))}</td>
+                    <td className="p-3">{row.oldData?.status ?? '-'} → {row.newData?.status ?? '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="lk-text-muted">Sem histórico de conciliação para esta competência.</p>
         )}
       </div>
 
