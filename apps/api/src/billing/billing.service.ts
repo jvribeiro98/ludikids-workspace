@@ -337,6 +337,64 @@ export class BillingService {
     };
   }
 
+  async reconcileInvoice(tenantId: string, invoiceId: string, userId?: string) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, tenantId },
+      include: { payments: true },
+    });
+
+    if (!invoice) {
+      throw new Error('Fatura não encontrada');
+    }
+
+    const previousPaidAmount = Number(invoice.paidAmount);
+    const paymentsTotal = invoice.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const reconciledPaidAmount = Number(paymentsTotal.toFixed(2));
+    const total = Number(invoice.total);
+
+    const status =
+      reconciledPaidAmount >= total
+        ? InvoiceStatus.PAID
+        : reconciledPaidAmount > 0
+          ? InvoiceStatus.PARTIAL
+          : new Date(invoice.dueDate) < new Date()
+            ? InvoiceStatus.OVERDUE
+            : InvoiceStatus.PENDING;
+
+    await this.prisma.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        paidAmount: reconciledPaidAmount,
+        status,
+        paidAt: status === InvoiceStatus.PAID ? invoice.paidAt || new Date() : null,
+      },
+    });
+
+    await this.audit.log({
+      tenantId,
+      userId,
+      action: 'BILLING_RECONCILE_INVOICE',
+      entity: 'Invoice',
+      entityId: invoiceId,
+      oldData: {
+        paidAmount: previousPaidAmount,
+        status: invoice.status,
+      },
+      newData: {
+        paidAmount: reconciledPaidAmount,
+        status,
+      },
+    });
+
+    return {
+      invoiceId,
+      previousPaidAmount,
+      reconciledPaidAmount,
+      deltaApplied: Number((reconciledPaidAmount - previousPaidAmount).toFixed(2)),
+      status,
+    };
+  }
+
   async getOverdueReport(tenantId: string, referenceMonth?: string) {
     const ref = referenceMonth ? new Date(referenceMonth) : new Date();
     const refYear = ref.getFullYear();

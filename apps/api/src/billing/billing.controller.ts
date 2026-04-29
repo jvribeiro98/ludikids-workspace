@@ -77,4 +77,13 @@ export class BillingController {
       parseInt(month, 10),
     );
   }
+
+  @Post('reconciliation/reconcile-invoice')
+  reconcileInvoice(
+    @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser('sub') userId: string,
+    @Body() body: { invoiceId: string },
+  ) {
+    return this.billingService.reconcileInvoice(tenantId, body.invoiceId, userId);
+  }
 }

@@ -139,6 +139,7 @@ export default function FinanceiroPage() {
                   <th className="p-3 text-left">Pago na fatura</th>
                   <th className="p-3 text-left">Soma de pagamentos</th>
                   <th className="p-3 text-left">Delta</th>
+                  <th className="p-3 text-left">Ação</th>
                 </tr>
               </thead>
               <tbody>
@@ -149,6 +150,26 @@ export default function FinanceiroPage() {
                     <td className="p-3 lk-text-number">{fmt(row.invoicePaid)}</td>
                     <td className="p-3 lk-text-number">{fmt(row.paymentsTotal)}</td>
                     <td className="p-3 lk-text-number" style={{ color: 'var(--brand-danger)' }}>{fmt(row.delta)}</td>
+                    <td className="p-3">
+                      <button
+                        className="btn btn-secondary text-sm py-1"
+                        onClick={async () => {
+                          setUiError('');
+                          try {
+                            await apiPost('/billing/reconciliation/reconcile-invoice', { invoiceId: row.invoiceId });
+                            await Promise.all([
+                              refetchReconciliation(),
+                              refetchInvoices(),
+                              refetchSummary(),
+                            ]);
+                          } catch (err: any) {
+                            setUiError(err?.message || 'Falha ao reconciliar fatura.');
+                          }
+                        }}
+                      >
+                        Reconciliar
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
