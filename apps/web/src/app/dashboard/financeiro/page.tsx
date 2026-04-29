@@ -8,6 +8,24 @@ const now = new Date();
 const year = now.getFullYear();
 const month = now.getMonth() + 1;
 
+type ReconciliationSummary = {
+  totalInvoices: number;
+  expectedTotal: number;
+  invoicePaidTotal: number;
+  paymentsTotal: number;
+  paidVsPaymentsDelta: number;
+  divergentCount: number;
+};
+
+type ReconciliationRow = {
+  invoiceId: string;
+  childName: string;
+  status: string;
+  invoicePaid: number;
+  paymentsTotal: number;
+  delta: number;
+};
+
 export default function FinanceiroPage() {
   const [paymentModal, setPaymentModal] = useState<{ invoiceId: string; total: number } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -25,6 +43,18 @@ export default function FinanceiroPage() {
     queryFn: () => apiGet<{ totalExpected: number; totalPaid: number; totalPending: number; overdueCount: number }>(`/billing/summary?year=${year}&month=${month}`),
   });
 
+  const {
+    data: reconciliation,
+    isError: reconciliationError,
+    refetch: refetchReconciliation,
+  } = useQuery({
+    queryKey: ['billing-reconciliation', year, month],
+    queryFn: () =>
+      apiGet<{ summary: ReconciliationSummary; divergentInvoices: ReconciliationRow[] }>(
+        `/billing/reconciliation?year=${year}&month=${month}`,
+      ),
+  });
+
   const { data: invoices, isLoading, isError: invoicesError, refetch: refetchInvoices } = useQuery({
     queryKey: ['invoices', cycle?.id],
     queryFn: () => apiGet<any[]>(`/billing/invoices?billingCycleId=${cycle?.id}`),
@@ -36,6 +66,7 @@ export default function FinanceiroPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['billing-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['billing-reconciliation'] });
       setPaymentModal(null);
       setPaymentAmount('');
       setUiError('');
@@ -57,12 +88,13 @@ export default function FinanceiroPage() {
         <p className="lk-text-muted">Controle de recebíveis, faturas e despesas com leitura operacional rápida.</p>
       </div>
 
-      {(summaryError || invoicesError) && (
+      {(summaryError || invoicesError || reconciliationError) && (
         <div className="lk-card">
           <p className="text-red-700 font-medium">Erro ao carregar dados financeiros.</p>
-          <div className="flex gap-2 mt-3">
+          <div className="flex gap-2 mt-3 flex-wrap">
             <button className="btn btn-secondary" onClick={() => refetchSummary()}>Atualizar resumo</button>
             <button className="btn btn-secondary" onClick={() => refetchInvoices()}>Atualizar faturas</button>
+            <button className="btn btn-secondary" onClick={() => refetchReconciliation()}>Atualizar conciliação</button>
           </div>
         </div>
       )}
@@ -72,6 +104,59 @@ export default function FinanceiroPage() {
         <Metric title="Recebido" value={summary ? fmt(summary.totalPaid) : '-'} tone="var(--brand-success)" />
         <Metric title="Pendente" value={summary ? fmt(summary.totalPending) : '-'} tone="var(--brand-warning)" />
         <Metric title="Em atraso" value={String(summary?.overdueCount ?? 0)} tone="var(--brand-danger)" />
+      </div>
+
+      <div className="lk-card">
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <h2 className="font-semibold">Conciliação financeira ({month}/{year})</h2>
+          <button className="btn btn-secondary" onClick={() => refetchReconciliation()}>
+            Atualizar
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <Metric title="Pago em faturas" value={fmt(reconciliation?.summary.invoicePaidTotal ?? 0)} tone="var(--brand-secondary)" />
+          <Metric title="Pago em lançamentos" value={fmt(reconciliation?.summary.paymentsTotal ?? 0)} tone="var(--brand-primary)" />
+          <Metric
+            title="Delta pago x lançamentos"
+            value={fmt(reconciliation?.summary.paidVsPaymentsDelta ?? 0)}
+            tone={Math.abs(reconciliation?.summary.paidVsPaymentsDelta ?? 0) >= 0.01 ? 'var(--brand-danger)' : 'var(--brand-success)'}
+          />
+          <Metric
+            title="Faturas divergentes"
+            value={String(reconciliation?.summary.divergentCount ?? 0)}
+            tone={(reconciliation?.summary.divergentCount ?? 0) > 0 ? 'var(--brand-danger)' : 'var(--brand-success)'}
+          />
+        </div>
+
+        {(reconciliation?.divergentInvoices?.length ?? 0) > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b" style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-muted)' }}>
+                  <th className="p-3 text-left">Criança</th>
+                  <th className="p-3 text-left">Status</th>
+                  <th className="p-3 text-left">Pago na fatura</th>
+                  <th className="p-3 text-left">Soma de pagamentos</th>
+                  <th className="p-3 text-left">Delta</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reconciliation?.divergentInvoices.map((row) => (
+                  <tr key={row.invoiceId} className="border-b" style={{ borderColor: 'var(--brand-border)' }}>
+                    <td className="p-3">{row.childName}</td>
+                    <td className="p-3">{row.status}</td>
+                    <td className="p-3 lk-text-number">{fmt(row.invoicePaid)}</td>
+                    <td className="p-3 lk-text-number">{fmt(row.paymentsTotal)}</td>
+                    <td className="p-3 lk-text-number" style={{ color: 'var(--brand-danger)' }}>{fmt(row.delta)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="lk-text-muted">Sem divergências para a competência atual.</p>
+        )}
       </div>
 
       <div className="lk-card overflow-hidden p-0">
