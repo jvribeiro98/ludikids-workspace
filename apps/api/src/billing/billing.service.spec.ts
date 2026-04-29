@@ -182,4 +182,52 @@ describe('BillingService.getReconciliationReport', () => {
       status: InvoiceStatus.PARTIAL,
     });
   });
+
+  it('reconcilia todas as divergentes do ciclo e retorna resumo de execução', async () => {
+    prisma.billingCycle.findUnique.mockResolvedValue({ id: 'cycle-1' });
+    prisma.invoice.findMany.mockResolvedValue([
+      {
+        id: 'inv-1',
+        childId: 'c1',
+        dueDate: new Date('2026-04-10'),
+        status: InvoiceStatus.PAID,
+        total: 100,
+        paidAmount: 100,
+        payments: [{ amount: 100 }],
+      },
+      {
+        id: 'inv-2',
+        childId: 'c2',
+        dueDate: new Date('2026-04-10'),
+        status: InvoiceStatus.PARTIAL,
+        total: 200,
+        paidAmount: 150,
+        payments: [{ amount: 120 }],
+      },
+      {
+        id: 'inv-3',
+        childId: 'c3',
+        dueDate: new Date('2026-04-10'),
+        status: InvoiceStatus.PENDING,
+        total: 300,
+        paidAmount: 0,
+        payments: [{ amount: 50 }],
+      },
+    ]);
+
+    const result = await service.reconcileDivergentInvoices('tenant-1', 2026, 4, 'user-1');
+
+    expect(result).toMatchObject({
+      year: 2026,
+      month: 4,
+      totalInvoices: 3,
+      divergentCount: 2,
+      reconciledCount: 2,
+      unchangedCount: 1,
+      totalDeltaApplied: 20,
+    });
+    expect(result.reconciledInvoices).toHaveLength(2);
+    expect(prisma.invoice.update).toHaveBeenCalledTimes(2);
+    expect(audit.log).toHaveBeenCalledTimes(2);
+  });
 });

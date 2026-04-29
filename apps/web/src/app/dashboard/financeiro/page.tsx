@@ -109,9 +109,26 @@ export default function FinanceiroPage() {
       <div className="lk-card">
         <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
           <h2 className="font-semibold">Conciliação financeira ({month}/{year})</h2>
-          <button className="btn btn-secondary" onClick={() => refetchReconciliation()}>
-            Atualizar
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              className="btn btn-primary"
+              onClick={async () => {
+                setUiError('');
+                try {
+                  await apiPost('/billing/reconciliation/reconcile-all', { year, month });
+                  await Promise.all([refetchReconciliation(), refetchInvoices(), refetchSummary()]);
+                } catch (err: any) {
+                  setUiError(err?.message || 'Falha ao reconciliar todas as faturas divergentes.');
+                }
+              }}
+              disabled={(reconciliation?.summary.divergentCount ?? 0) === 0}
+            >
+              Reconciliar todas
+            </button>
+            <button className="btn btn-secondary" onClick={() => refetchReconciliation()}>
+              Atualizar
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">

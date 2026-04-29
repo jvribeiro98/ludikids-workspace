@@ -86,4 +86,13 @@ export class BillingController {
   ) {
     return this.billingService.reconcileInvoice(tenantId, body.invoiceId, userId);
   }
+
+  @Post('reconciliation/reconcile-all')
+  reconcileAll(
+    @CurrentUser('tenantId') tenantId: string,
+    @CurrentUser('sub') userId: string,
+    @Body() body: { year: number; month: number },
+  ) {
+    return this.billingService.reconcileDivergentInvoices(tenantId, body.year, body.month, userId);
+  }
 }

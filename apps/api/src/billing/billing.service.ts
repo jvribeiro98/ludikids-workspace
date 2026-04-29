@@ -395,6 +395,106 @@ export class BillingService {
     };
   }
 
+  async reconcileDivergentInvoices(tenantId: string, year: number, month: number, userId?: string) {
+    const cycle = await this.prisma.billingCycle.findUnique({
+      where: { tenantId_year_month: { tenantId, year, month } },
+    });
+
+    if (!cycle) {
+      return {
+        year,
+        month,
+        totalInvoices: 0,
+        divergentCount: 0,
+        reconciledCount: 0,
+        unchangedCount: 0,
+        totalDeltaApplied: 0,
+        reconciledInvoices: [],
+      };
+    }
+
+    const invoices = await this.prisma.invoice.findMany({
+      where: { tenantId, billingCycleId: cycle.id },
+      include: { payments: true },
+      orderBy: { dueDate: 'asc' },
+    });
+
+    let totalDeltaApplied = 0;
+    const reconciledInvoices: Array<{
+      invoiceId: string;
+      previousPaidAmount: number;
+      reconciledPaidAmount: number;
+      deltaApplied: number;
+      status: InvoiceStatus;
+    }> = [];
+
+    for (const invoice of invoices) {
+      const previousPaidAmount = Number(invoice.paidAmount);
+      const paymentsTotal = invoice.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+      const reconciledPaidAmount = Number(paymentsTotal.toFixed(2));
+      const deltaApplied = Number((reconciledPaidAmount - previousPaidAmount).toFixed(2));
+
+      if (Math.abs(deltaApplied) < 0.01) {
+        continue;
+      }
+
+      const total = Number(invoice.total);
+      const status =
+        reconciledPaidAmount >= total
+          ? InvoiceStatus.PAID
+          : reconciledPaidAmount > 0
+            ? InvoiceStatus.PARTIAL
+            : new Date(invoice.dueDate) < new Date()
+              ? InvoiceStatus.OVERDUE
+              : InvoiceStatus.PENDING;
+
+      await this.prisma.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          paidAmount: reconciledPaidAmount,
+          status,
+          paidAt: status === InvoiceStatus.PAID ? invoice.paidAt || new Date() : null,
+        },
+      });
+
+      await this.audit.log({
+        tenantId,
+        userId,
+        action: 'BILLING_RECONCILE_INVOICE',
+        entity: 'Invoice',
+        entityId: invoice.id,
+        oldData: {
+          paidAmount: previousPaidAmount,
+          status: invoice.status,
+        },
+        newData: {
+          paidAmount: reconciledPaidAmount,
+          status,
+        },
+      });
+
+      totalDeltaApplied += deltaApplied;
+      reconciledInvoices.push({
+        invoiceId: invoice.id,
+        previousPaidAmount,
+        reconciledPaidAmount,
+        deltaApplied,
+        status,
+      });
+    }
+
+    return {
+      year,
+      month,
+      totalInvoices: invoices.length,
+      divergentCount: reconciledInvoices.length,
+      reconciledCount: reconciledInvoices.length,
+      unchangedCount: invoices.length - reconciledInvoices.length,
+      totalDeltaApplied: Number(totalDeltaApplied.toFixed(2)),
+      reconciledInvoices,
+    };
+  }
+
   async getOverdueReport(tenantId: string, referenceMonth?: string) {
     const ref = referenceMonth ? new Date(referenceMonth) : new Date();
     const refYear = ref.getFullYear();
