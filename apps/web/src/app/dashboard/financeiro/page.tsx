@@ -5,8 +5,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '@/lib/api';
 
 const now = new Date();
-const year = now.getFullYear();
-const month = now.getMonth() + 1;
 
 type ReconciliationSummary = {
   totalInvoices: number;
@@ -36,6 +34,8 @@ type ReconciliationHistoryRow = {
 };
 
 export default function FinanceiroPage() {
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [paymentModal, setPaymentModal] = useState<{ invoiceId: string; total: number } | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'PIX' | 'CASH' | 'CARD' | 'TRANSFER'>('PIX');
@@ -43,13 +43,13 @@ export default function FinanceiroPage() {
   const queryClient = useQueryClient();
 
   const { data: cycle } = useQuery({
-    queryKey: ['billing-cycle', year, month],
-    queryFn: () => apiGet<{ id: string }>(`/billing/cycles?year=${year}&month=${month}`),
+    queryKey: ['billing-cycle', selectedYear, selectedMonth],
+    queryFn: () => apiGet<{ id: string }>(`/billing/cycles?year=${selectedYear}&month=${selectedMonth}`),
   });
 
   const { data: summary, isError: summaryError, refetch: refetchSummary } = useQuery({
-    queryKey: ['billing-summary', year, month],
-    queryFn: () => apiGet<{ totalExpected: number; totalPaid: number; totalPending: number; overdueCount: number }>(`/billing/summary?year=${year}&month=${month}`),
+    queryKey: ['billing-summary', selectedYear, selectedMonth],
+    queryFn: () => apiGet<{ totalExpected: number; totalPaid: number; totalPending: number; overdueCount: number }>(`/billing/summary?year=${selectedYear}&month=${selectedMonth}`),
   });
 
   const {
@@ -57,17 +57,17 @@ export default function FinanceiroPage() {
     isError: reconciliationError,
     refetch: refetchReconciliation,
   } = useQuery({
-    queryKey: ['billing-reconciliation', year, month],
+    queryKey: ['billing-reconciliation', selectedYear, selectedMonth],
     queryFn: () =>
       apiGet<{ summary: ReconciliationSummary; divergentInvoices: ReconciliationRow[] }>(
-        `/billing/reconciliation?year=${year}&month=${month}`,
+        `/billing/reconciliation?year=${selectedYear}&month=${selectedMonth}`,
       ),
   });
 
   const { data: reconciliationHistory, refetch: refetchReconciliationHistory } = useQuery({
-    queryKey: ['billing-reconciliation-history', year, month],
+    queryKey: ['billing-reconciliation-history', selectedYear, selectedMonth],
     queryFn: () =>
-      apiGet<ReconciliationHistoryRow[]>(`/billing/reconciliation/history?year=${year}&month=${month}&limit=20`),
+      apiGet<ReconciliationHistoryRow[]>(`/billing/reconciliation/history?year=${selectedYear}&month=${selectedMonth}&limit=20`),
   });
 
   const { data: invoices, isLoading, isError: invoicesError, refetch: refetchInvoices } = useQuery({
@@ -90,17 +90,36 @@ export default function FinanceiroPage() {
   });
 
   const { data: expenses } = useQuery({
-    queryKey: ['expenses', year, month],
-    queryFn: () => apiGet<any[]>(`/expenses?start=${year}-${String(month).padStart(2, '0')}-01&end=${year}-${String(month).padStart(2, '0')}-31`),
+    queryKey: ['expenses', selectedYear, selectedMonth],
+    queryFn: () => apiGet<any[]>(`/expenses?start=${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01&end=${selectedYear}-${String(selectedMonth).padStart(2, '0')}-31`),
   });
 
   const fmt = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
+  const availableYears = Array.from({ length: 6 }, (_, i) => now.getFullYear() - 3 + i);
 
   return (
     <div className="space-y-4">
       <div className="lk-card">
         <h1 className="text-2xl font-bold">Financeiro</h1>
         <p className="lk-text-muted">Controle de recebíveis, faturas e despesas com leitura operacional rápida.</p>
+        <div className="mt-4 flex gap-2 flex-wrap items-end">
+          <div>
+            <label className="label">Mês</label>
+            <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))}>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Ano</label>
+            <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}>
+              {availableYears.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
       {(summaryError || invoicesError || reconciliationError) && (
@@ -123,14 +142,14 @@ export default function FinanceiroPage() {
 
       <div className="lk-card">
         <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-          <h2 className="font-semibold">Conciliação financeira ({month}/{year})</h2>
+          <h2 className="font-semibold">Conciliação financeira ({selectedMonth}/{selectedYear})</h2>
           <div className="flex items-center gap-2 flex-wrap">
             <button
               className="btn btn-primary"
               onClick={async () => {
                 setUiError('');
                 try {
-                  await apiPost('/billing/reconciliation/reconcile-all', { year, month });
+                  await apiPost('/billing/reconciliation/reconcile-all', { year: selectedYear, month: selectedMonth });
                   await Promise.all([
                     refetchReconciliation(),
                     refetchInvoices(),
@@ -220,7 +239,7 @@ export default function FinanceiroPage() {
 
       <div className="lk-card">
         <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-          <h2 className="font-semibold">Histórico de conciliações ({month}/{year})</h2>
+          <h2 className="font-semibold">Histórico de conciliações ({selectedMonth}/{selectedYear})</h2>
           <button className="btn btn-secondary" onClick={() => refetchReconciliationHistory()}>
             Atualizar histórico
           </button>
@@ -260,7 +279,7 @@ export default function FinanceiroPage() {
 
       <div className="lk-card overflow-hidden p-0">
         <div className="p-4 border-b" style={{ borderColor: 'var(--brand-border)' }}>
-          <h2 className="font-semibold">Faturas da competência {month}/{year}</h2>
+          <h2 className="font-semibold">Faturas da competência {selectedMonth}/{selectedYear}</h2>
         </div>
         {isLoading && <p className="p-4 lk-text-muted">Carregando...</p>}
         {invoices && (
