@@ -64,4 +64,17 @@ export class BillingController {
   ) {
     return this.billingService.getOverdueReport(tenantId, referenceMonth);
   }
+
+  @Get('reconciliation')
+  getReconciliation(
+    @CurrentUser('tenantId') tenantId: string,
+    @Query('year') year: string,
+    @Query('month') month: string,
+  ) {
+    return this.billingService.getReconciliationReport(
+      tenantId,
+      parseInt(year, 10),
+      parseInt(month, 10),
+    );
+  }
 }
