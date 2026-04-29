@@ -2,8 +2,12 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPatch } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { MANAGEMENT_ROLES, hasAnyRole } from '@/lib/rbac';
 
 export default function CoordenacaoPage() {
+  const { user } = useAuth();
+  const canAccess = hasAnyRole(user?.roles, MANAGEMENT_ROLES);
   const queryClient = useQueryClient();
 
   const { data: items, isLoading, isError, refetch } = useQuery({
@@ -25,6 +29,15 @@ export default function CoordenacaoPage() {
     mutationFn: (id: string) => apiPatch(`/coordination-inbox/${id}/contacted`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['coordination-pending'] }),
   });
+
+  if (!canAccess) {
+    return (
+      <div className="lk-card">
+        <h1 className="text-2xl font-bold">Inbox da Coordenação</h1>
+        <p className="text-red-700 font-medium mt-2">Você não possui permissão para acessar este módulo.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

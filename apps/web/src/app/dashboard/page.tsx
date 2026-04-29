@@ -5,8 +5,10 @@ import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api';
 import { useBranding } from '@/components/BrandingProvider';
+import { useAuth } from '@/contexts/AuthContext';
 import { SmartChart, type ChartPeriod } from '@/components/dashboard/SmartChart';
 import { InsightSummary } from '@/components/dashboard/InsightSummary';
+import { MANAGEMENT_ROLES, hasAnyRole } from '@/lib/rbac';
 
 interface Summary {
   billing: { totalExpected: number; totalPaid: number; totalPending: number; overdueCount: number };
@@ -23,6 +25,8 @@ function money(v: number) {
 const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago'];
 
 export default function DashboardPage() {
+  const { user } = useAuth();
+  const canAccess = hasAnyRole(user?.roles, MANAGEMENT_ROLES);
   const { branding } = useBranding();
   const [period, setPeriod] = useState<ChartPeriod>('mes');
 
@@ -37,6 +41,15 @@ export default function DashboardPage() {
 
   const currentValue = summary?.billing.totalPaid ?? 0;
   const previousValue = summary?.billing.totalExpected ?? 1;
+
+  if (!canAccess) {
+    return (
+      <div className="lk-card">
+        <h1 className="text-2xl font-bold">Cockpit operacional</h1>
+        <p className="text-red-700 font-medium mt-2">Você não possui permissão para acessar este módulo.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">

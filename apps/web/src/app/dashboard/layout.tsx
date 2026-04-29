@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/components/BrandingProvider';
-import { FINANCIAL_ROLES, hasAnyRole } from '@/lib/rbac';
+import { FINANCIAL_ROLES, hasAnyRole, MANAGEMENT_ROLES, ACADEMIC_ROLES, FULL_ACCESS_ROLES } from '@/lib/rbac';
 
 const nav = [
   { href: '/dashboard', label: 'Dashboard', icon: '🏠' },
@@ -24,6 +24,13 @@ const mobileTabs = nav.slice(0, 5);
 
 function canAccessNav(href: string, userRoles: string[]) {
   if (href === '/dashboard/financeiro') return hasAnyRole(userRoles, FINANCIAL_ROLES);
+  if (href === '/dashboard/rh' || href === '/dashboard/coordenacao' || href === '/dashboard/whatsapp') {
+    return hasAnyRole(userRoles, MANAGEMENT_ROLES);
+  }
+  if (href === '/dashboard/criancas' || href === '/dashboard/contratos' || href === '/dashboard/diario') {
+    return hasAnyRole(userRoles, ACADEMIC_ROLES);
+  }
+  if (href === '/dashboard/personalizacao') return hasAnyRole(userRoles, FULL_ACCESS_ROLES);
   return true;
 }
 
